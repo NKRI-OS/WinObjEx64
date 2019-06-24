@@ -4,9 +4,9 @@
 *
 *  TITLE:       TESTUNIT.C
 *
-*  VERSION:     1.74
+*  VERSION:     1.80
 *
-*  DATE:        12 May 2019
+*  DATE:        22 June 2019
 *
 *  Test code used while debug.
 *
@@ -731,8 +731,8 @@ VOID TestStart(
 )
 {
     //TestPsObjectSecurity();
-    TestLicenseCache();
-    TestApiSetResolve();
+    //TestLicenseCache();
+    //TestApiSetResolve();
     TestDesktop();
     TestCall();
     TestApiPort();

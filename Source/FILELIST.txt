@@ -60,6 +60,9 @@ msvcver.h - MS VisualC compiler versions header file
 objects.c - known objects support functions
 objects.h - known objects table
 
+plugmngr.c - plugin manager
+plugmngr.h
+
 propBasic.c - property sheet "Basic" handlers, including window procedures
 propBasic.h
 propBasicConsts.h

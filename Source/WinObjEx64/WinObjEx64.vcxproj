@@ -191,6 +191,7 @@
       <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
       <IgnoreAllDefaultLibraries>
       </IgnoreAllDefaultLibraries>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
     <Manifest>
       <SuppressStartupBanner>false</SuppressStartupBanner>
@@ -411,6 +412,7 @@
     <ClCompile Include="minirtl\_strstri.c" />
     <ClCompile Include="ntos\ntldr.c" />
     <ClCompile Include="objects.c" />
+    <ClCompile Include="plugmngr.c" />
     <ClCompile Include="props\propBasic.c" />
     <ClCompile Include="props\propDesktop.c" />
     <ClCompile Include="props\propDlg.c" />
@@ -459,6 +461,7 @@
     <ClInclude Include="ntos\ntos.h" />
     <ClInclude Include="objects.h" />
     <ClInclude Include="kldbg_patterns.h" />
+    <ClInclude Include="plugmngr.h" />
     <ClInclude Include="props\propBasic.h" />
     <ClInclude Include="props\propBasicConsts.h" />
     <ClInclude Include="props\propDesktop.h" />

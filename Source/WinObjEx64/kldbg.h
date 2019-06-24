@@ -4,9 +4,9 @@
 *
 *  TITLE:       KLDBG.H
 *
-*  VERSION:     1.73
+*  VERSION:     1.80
 *
-*  DATE:        30 Mar 2019
+*  DATE:        22 June 2019
 *
 *  Common header file for the Kernel Debugger Driver support.
 *
@@ -323,3 +323,7 @@ VOID kdShowError(
     _In_ ULONG InputBufferLength,
     _In_ NTSTATUS Status,
     _In_ PIO_STATUS_BLOCK Iosb);
+
+UCHAR kdGetInstructionLength(
+    _In_ PVOID ptrCode,
+    _Out_ PULONG ptrFlags);

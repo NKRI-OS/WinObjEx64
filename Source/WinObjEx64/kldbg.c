@@ -4,9 +4,9 @@
 *
 *  TITLE:       KLDBG.C, based on KDSubmarine by Evilcry
 *
-*  VERSION:     1.74
+*  VERSION:     1.80
 *
-*  DATE:        27 May 2019
+*  DATE:        22 June 2019
 *
 *  MINIMUM SUPPORTED OS WINDOWS 7
 *
@@ -2949,6 +2949,36 @@ VOID kdInit(
         ObpInitInfoBlockOffsets();
 
         kdQuerySystemInformation(&g_kdctx);
+    }
+}
+
+/*
+* kdGetInstructionLength
+*
+* Purpose:
+*
+* Wrapper for hde64_disasm.
+*
+*/
+UCHAR kdGetInstructionLength(
+    _In_ PVOID ptrCode,
+    _Out_ PULONG ptrFlags)
+{
+    hde64s  hs;
+
+    __try {
+
+        hde64_disasm((void*)ptrCode, &hs);
+        if (hs.flags & F_ERROR) {
+            *ptrFlags = hs.flags;
+            return 0;
+        }
+        *ptrFlags = hs.flags;
+        return hs.len;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER) {
+        DbgPrint("GetInstructionLength exception %lx", GetExceptionCode());
+        return 0;
     }
 }
 

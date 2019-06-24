@@ -213,6 +213,9 @@
     <ClCompile Include="extras\extrasSL.c">
       <Filter>Source Files\extras</Filter>
     </ClCompile>
+    <ClCompile Include="plugmngr.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc">
@@ -372,6 +375,9 @@
     </ClInclude>
     <ClInclude Include="extras\extrasSL.h">
       <Filter>Source Files\extras</Filter>
+    </ClInclude>
+    <ClInclude Include="plugmngr.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
