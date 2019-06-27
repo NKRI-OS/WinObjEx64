@@ -33,11 +33,36 @@ typedef UCHAR (CALLBACK *pfnGetInstructionLength)(
     _In_ PVOID ptrCode,
     _Out_ PULONG ptrFlags);
 
+typedef PVOID(*pfnGetSystemInfoEx)(
+    _In_ ULONG SystemInformationClass,
+    _Out_opt_ PULONG ReturnLength,
+    _In_ PMEMALLOCROUTINE MemAllocRoutine,
+    _In_ PMEMFREEROUTINE MemFreeRoutine);
+
+typedef PVOID(*pfnFindModuleEntryByName)(
+    _In_ PVOID pModulesList,
+    _In_ LPCSTR ModuleName);
+
+typedef ULONG(*pfnFindModuleEntryByAddress)(
+    _In_ PVOID pModulesList,
+    _In_ PVOID Address);
+
+typedef BOOL(*pfnFindModuleNameByAddress)(
+    _In_ PVOID pModulesList,
+    _In_ PVOID Address,
+    _Inout_	LPWSTR Buffer,
+    _In_ DWORD ccBuffer);
+
 typedef struct _WINOBJEX_PARAM_BLOCK {
     HWND ParentWindow;
+    HINSTANCE hInstance;
     RTL_OSVERSIONINFOW osver;
     pfnReadSystemMemoryEx ReadSystemMemoryEx;
     pfnGetInstructionLength GetInstructionLength;
+    pfnGetSystemInfoEx GetSystemInfoEx;
+    pfnFindModuleEntryByName FindModuleEntryByName;
+    pfnFindModuleEntryByAddress FindModuleEntryByAddress;
+    pfnFindModuleNameByAddress FindModuleNameByAddress;
 } WINOBJEX_PARAM_BLOCK, *PWINOBJEX_PARAM_BLOCK;
 
 typedef NTSTATUS(CALLBACK *pfnStartPlugin)(

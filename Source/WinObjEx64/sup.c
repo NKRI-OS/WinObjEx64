@@ -818,19 +818,21 @@ PVOID supGetTokenInfo(
 }
 
 /*
-* supGetSystemInfo
+* supGetSystemInfoEx
 *
 * Purpose:
 *
 * Returns buffer with system information by given SystemInformationClass.
 *
-* Returned buffer must be freed with supHeapFree after usage.
+* Returned buffer must be freed with MemFreeRoutine type after usage.
 * Function will return error after 20 attempts.
 *
 */
-PVOID supGetSystemInfo(
+PVOID supGetSystemInfoEx(
     _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
-    _Out_opt_ PULONG ReturnLength
+    _Out_opt_ PULONG ReturnLength,
+    _In_ PMEMALLOCROUTINE MemAllocRoutine,
+    _In_ PMEMFREEROUTINE MemFreeRoutine
 )
 {
     INT         c = 0;
@@ -843,7 +845,7 @@ PVOID supGetSystemInfo(
         *ReturnLength = 0;
 
     do {
-        Buffer = supHeapAlloc((SIZE_T)Size);
+        Buffer = MemAllocRoutine((SIZE_T)Size);
         if (Buffer != NULL) {
             status = NtQuerySystemInformation(SystemInformationClass, Buffer, Size, &memIO);
         }
@@ -851,7 +853,7 @@ PVOID supGetSystemInfo(
             return NULL;
         }
         if (status == STATUS_INFO_LENGTH_MISMATCH) {
-            supHeapFree(Buffer);
+            MemFreeRoutine(Buffer);
             Buffer = NULL;
             Size *= 2;
             c++;
@@ -869,10 +871,32 @@ PVOID supGetSystemInfo(
     }
 
     if (Buffer) {
-        supHeapFree(Buffer);
+        MemFreeRoutine(Buffer);
     }
 
     return NULL;
+}
+
+/*
+* supGetSystemInfo
+*
+* Purpose:
+*
+* Returns buffer with system information by given SystemInformationClass.
+*
+* Returned buffer must be freed with supHeapFree after usage.
+* Function will return error after 20 attempts.
+*
+*/
+PVOID supGetSystemInfo(
+    _In_ SYSTEM_INFORMATION_CLASS SystemInformationClass,
+    _Out_opt_ PULONG ReturnLength
+)
+{
+    return supGetSystemInfoEx(SystemInformationClass,
+        ReturnLength,
+        (PMEMALLOCROUTINE)supHeapAlloc,
+        (PMEMFREEROUTINE)supHeapFree);
 }
 
 /*

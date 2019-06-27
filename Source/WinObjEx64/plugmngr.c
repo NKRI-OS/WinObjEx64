@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        22 June 2019
+*  DATE:        23 June 2019
 *
 *  Plugin manager.
 *
@@ -267,26 +267,50 @@ VOID PluginManagerProcessEntry(
     __try {
         PluginEntry = PluginManagerGetEntryById(Id);
         if (PluginEntry) {
+
+            //
+            // Check plugin requirements.
+            //
+
+            if (g_WinObj.IsWine && PluginEntry->Plugin.SupportWine == FALSE) {
+                MessageBox(ParentWindow, TEXT("This plugin does not support Wine"), PROGRAM_NAME, MB_ICONINFORMATION);
+                return;
+            }
+
+            if (PluginEntry->Plugin.NeedAdmin && g_kdctx.IsFullAdmin == FALSE) {
+                MessageBox(ParentWindow, TEXT("This plugin require administrator privileges"), PROGRAM_NAME, MB_ICONINFORMATION);
+                return;
+            }
+
+            if (PluginEntry->Plugin.NeedDriver && g_kdctx.drvOpenLoadStatus != ERROR_SUCCESS) {
+                MessageBox(ParentWindow, TEXT("This plugin require driver usage to run"), PROGRAM_NAME, MB_ICONINFORMATION);
+                return;
+            }
             
             RtlSecureZeroMemory(&ParamBlock, sizeof(ParamBlock));
             ParamBlock.ParentWindow = ParentWindow;
-            ParamBlock.ReadSystemMemoryEx = &kdReadSystemMemoryEx;
-            ParamBlock.GetInstructionLength = &kdGetInstructionLength;
+            ParamBlock.hInstance = g_WinObj.hInstance;
+            ParamBlock.GetSystemInfoEx = (pfnGetSystemInfoEx)&supGetSystemInfoEx;
+            ParamBlock.ReadSystemMemoryEx = (pfnReadSystemMemoryEx)&kdReadSystemMemoryEx;
+            ParamBlock.GetInstructionLength = (pfnGetInstructionLength)&kdGetInstructionLength;
+            ParamBlock.FindModuleEntryByName = (pfnFindModuleEntryByName)&supFindModuleEntryByName;
+            ParamBlock.FindModuleEntryByAddress = (pfnFindModuleEntryByAddress)&supFindModuleEntryByAddress;
+            ParamBlock.FindModuleNameByAddress = (pfnFindModuleNameByAddress)&supFindModuleNameByAddress;
 
             RtlCopyMemory(&ParamBlock.osver, &g_WinObj.osver, sizeof(RTL_OSVERSIONINFOW));
 
             Status = PluginEntry->Plugin.StartPlugin(&ParamBlock);
 
             if (NT_SUCCESS(Status)) {
-                DbgPrint("Plugin->StartPlugin success");
+                DbgPrint("Plugin->StartPlugin success\r\n");
             }
             else {
-                DbgPrint("Plugin->StartPluin error %lx", Status);
+                DbgPrint("Plugin->StartPluin error %lx\r\n", Status);
             }
 
         }
     }
     __except (EXCEPTION_EXECUTE_HANDLER) {
-        DbgPrint("Plugin catch exception %lx", GetExceptionCode());
+        DbgPrint("Plugin catch exception %lx\r\n", GetExceptionCode());
     }
 }

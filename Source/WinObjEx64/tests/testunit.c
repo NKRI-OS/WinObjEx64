@@ -16,6 +16,8 @@
 * PARTICULAR PURPOSE.
 *
 *******************************************************************************/
+#define OEMRESOURCE
+
 #include "global.h"
 #include "ntldr.h"
 #include <intrin.h>
@@ -724,17 +726,18 @@ VOID TestLicenseCache()
 
 VOID TestCall()
 {
+
 }
 
 VOID TestStart(
     VOID
 )
 {
+    TestCall();
     //TestPsObjectSecurity();
     //TestLicenseCache();
     //TestApiSetResolve();
     TestDesktop();
-    TestCall();
     TestApiPort();
     TestDebugObject();
     TestMailslot();
