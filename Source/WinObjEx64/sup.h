@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        23 June 2019
+*  DATE:        29 June 2019
 *
 *  Common header file for the program support routines.
 *
@@ -609,3 +609,13 @@ HFONT supCreateFontIndirect(
 
 HRESULT WINAPI supShellExecInExplorerProcess(
     _In_ PCWSTR pszFile);
+
+NTSTATUS supPrivilegeEnabled(
+    _In_ HANDLE ClientToken,
+    _In_ ULONG Privilege,
+    _Out_ LPBOOL pfResult);
+
+VOID supShowNtStatus(
+    _In_ HWND hWnd,
+    _In_ LPWSTR lpText,
+    _In_ NTSTATUS Status);

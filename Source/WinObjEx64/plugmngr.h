@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        22 June 2019
+*  DATE:        29 June 2019
 *
 *  Common header file for the plugin manager.
 *
@@ -53,16 +53,38 @@ typedef BOOL(*pfnFindModuleNameByAddress)(
     _Inout_	LPWSTR Buffer,
     _In_ DWORD ccBuffer);
 
+typedef INT(*pfnuiGetMaxOfTwoU64FromHex)(
+    _In_ HWND ListView,
+    _In_ LPARAM lParam1,
+    _In_ LPARAM lParam2,
+    _In_ LPARAM lParamSort,
+    _In_ BOOL Inverse);
+
+typedef INT(*pfnuiGetMaxCompareTwoFixedStrings)(
+    _In_ HWND ListView,
+    _In_ LPARAM lParam1,
+    _In_ LPARAM lParam2,
+    _In_ LPARAM lParamSort,
+    _In_ BOOL Inverse);
+
 typedef struct _WINOBJEX_PARAM_BLOCK {
     HWND ParentWindow;
     HINSTANCE hInstance;
+    ULONG_PTR SystemRangeStart;
     RTL_OSVERSIONINFOW osver;
+
+    //sys
     pfnReadSystemMemoryEx ReadSystemMemoryEx;
     pfnGetInstructionLength GetInstructionLength;
     pfnGetSystemInfoEx GetSystemInfoEx;
     pfnFindModuleEntryByName FindModuleEntryByName;
     pfnFindModuleEntryByAddress FindModuleEntryByAddress;
     pfnFindModuleNameByAddress FindModuleNameByAddress;
+
+    //ui
+    pfnuiGetMaxOfTwoU64FromHex uiGetMaxOfTwoU64FromHex;
+    pfnuiGetMaxCompareTwoFixedStrings uiGetMaxCompareTwoFixedStrings;
+
 } WINOBJEX_PARAM_BLOCK, *PWINOBJEX_PARAM_BLOCK;
 
 typedef NTSTATUS(CALLBACK *pfnStartPlugin)(

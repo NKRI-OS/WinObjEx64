@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        23 June 2019
+*  DATE:        29 June 2019
 *
 *  WinObjEx64 Sonar plugin.
 *
@@ -26,6 +26,139 @@ int  y_splitter_pos = 300, y_capture_pos = 0, y_splitter_max = 0;
 
 SONARCONTEXT g_ctx;
 
+#define SHOW_ERROR(error) MessageBox(g_ctx.MainWindow, (error), SONAR_WNDTITLE, MB_ICONERROR);
+
+/*
+* TreeListAddItem
+*
+* Purpose:
+*
+* Insert new treelist item.
+*
+*/
+HTREEITEM TreeListAddItem(
+    _In_ HWND TreeList,
+    _In_opt_ HTREEITEM hParent,
+    _In_ UINT mask,
+    _In_ UINT state,
+    _In_ UINT stateMask,
+    _In_opt_ LPWSTR pszText,
+    _In_opt_ PVOID subitems
+)
+{
+    TVINSERTSTRUCT  tvitem;
+    PTL_SUBITEMS    si = (PTL_SUBITEMS)subitems;
+
+    RtlSecureZeroMemory(&tvitem, sizeof(tvitem));
+    tvitem.hParent = hParent;
+    tvitem.item.mask = mask;
+    tvitem.item.state = state;
+    tvitem.item.stateMask = stateMask;
+    tvitem.item.pszText = pszText;
+    tvitem.hInsertAfter = TVI_LAST;
+    return TreeList_InsertTreeItem(TreeList, &tvitem, si);
+}
+
+VOID ListOpenQueue(
+    _In_ HTREEITEM hTreeRootItem,
+    _In_ ULONG_PTR OpenQueueAddress
+)
+{
+    ULONG ObjectSize, ObjectVersion;
+    PVOID ObjectPtr;
+
+    ULONG_PTR ProtocolNextOpen = OpenQueueAddress;
+
+    NDIS_OPEN_BLOCK_COMPATIBLE OpenBlock;
+
+    do {
+        DbgPrint("ProtocolNextOpen %llx\r\n", ProtocolNextOpen);
+
+        ObjectPtr = DumpOpenBlockVersionAware(ProtocolNextOpen, &ObjectSize, &ObjectVersion);
+        if (ObjectPtr == NULL) {
+            SHOW_ERROR(TEXT("Could not read open block, abort"));
+            return;
+        }
+        g_OpenBlock.u1.Ref = ObjectPtr;
+        RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
+        CreateCompatibleOpenBlock(ObjectVersion, &OpenBlock);
+        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
+
+        ProtocolNextOpen = (ULONG_PTR)OpenBlock.ProtocolNextOpen;
+
+    } while (ProtocolNextOpen != 0);
+}
+
+VOID AddProtocolToTreeList(
+    _In_ ULONG ObjectVersion,
+    _In_ ULONG_PTR ProtocolAddress,
+    _In_ ULONG_PTR OpenQueueAddress
+)
+{
+    PWCHAR lpProtocolName = NULL;
+    UNICODE_STRING *usProtocol;
+
+    TL_SUBITEMS_FIXED subitems;
+    HTREEITEM hTreeItem = NULL;
+
+    WCHAR szBuffer[32];
+
+    switch (ObjectVersion) {
+
+    case 1:
+        usProtocol = &g_ProtocolBlock.u1.Versions.v1->Name;
+        break;
+    case 2:
+        usProtocol = &g_ProtocolBlock.u1.Versions.v2->Name;
+        break;
+    case 3:
+        usProtocol = &g_ProtocolBlock.u1.Versions.v3->Name;
+        break;
+    case 4:
+        usProtocol = &g_ProtocolBlock.u1.Versions.v4->Name;
+        break;
+    case 5:
+        usProtocol = &g_ProtocolBlock.u1.Versions.v5->Name;
+        break;
+
+    default:
+        usProtocol = NULL;
+        break;
+    }
+
+    if (usProtocol == NULL) {
+        return;
+    }
+
+    lpProtocolName = (PWCHAR)DumpUnicodeString((ULONG_PTR)usProtocol->Buffer,
+        usProtocol->Length,
+        usProtocol->MaximumLength,
+        FALSE);
+
+    if (lpProtocolName) {
+        subitems.UserParam = (PVOID)NdisOpenProtocol;
+        StringCchPrintf(szBuffer, 32, TEXT("%llx"), ProtocolAddress);
+        subitems.Count = 1;
+        subitems.Text[0] = szBuffer;
+
+        hTreeItem = TreeListAddItem(
+            g_ctx.TreeList,
+            NULL,
+            TVIF_TEXT | TVIF_STATE,
+            TVIS_EXPANDED,
+            TVIS_EXPANDED,
+            lpProtocolName,
+            &subitems);
+
+        if (OpenQueueAddress > g_ctx.ParamBlock.SystemRangeStart) {
+            ListOpenQueue(hTreeItem, OpenQueueAddress);
+        }
+
+        HeapFree(g_ctx.PluginHeap, 0, lpProtocolName);
+    }
+
+}
+
 /*
 * ListProtocols
 *
@@ -36,20 +169,58 @@ SONARCONTEXT g_ctx;
 */
 VOID ListProtocols()
 {
+    ULONG NextProtocolOffset;
+    ULONG ObjectVersion;
+    ULONG ObjectSize;
+    PVOID ObjectPtr;
+
     ULONG_PTR ndisProtocolList = QueryProtocolList();
+    ULONG_PTR ProtocolBlockAddress = 0, OpenQueueAddress = 0;
 
     if (ndisProtocolList == 0) {
-
-        MessageBox(g_ctx.MainWindow, 
-            TEXT("Could not query ndisProtocolList variable address, abort."), 
-            SONAR_WNDTITLE, 
-            MB_ICONERROR);
-
+        SHOW_ERROR(TEXT("Could not query ndisProtocolList variable address, abort."));
         return;
     }
 
+    //
+    // Read head and skip it.
+    //
+    NextProtocolOffset = GetNextProtocolOffset(g_ctx.ParamBlock.osver.dwBuildNumber);
+    ProtocolBlockAddress = (ULONG_PTR)ndisProtocolList - NextProtocolOffset;
 
+    ObjectPtr = DumpProtocolBlockVersionAware(ProtocolBlockAddress, &ObjectSize, &ObjectVersion);
+    if (ObjectPtr == NULL) {
+        SHOW_ERROR(TEXT("Could not read protocol block, abort"));
+        return;
+    }
+    g_ProtocolBlock.u1.Ref = ObjectPtr;
 
+    ProtocolBlockAddress = GetNextProtocol(ObjectVersion);
+
+    HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
+
+    //
+    // Walk protocol list.
+    //
+    do {
+
+        ObjectPtr = DumpProtocolBlockVersionAware(ProtocolBlockAddress, &ObjectSize, &ObjectVersion);
+        if (ObjectPtr == NULL) {
+            SHOW_ERROR(TEXT("Could not read protocol block, abort"));
+            break;
+        }
+        g_ProtocolBlock.u1.Ref = ObjectPtr;
+
+        OpenQueueAddress = GetProtocolOpenQueue(ObjectVersion);
+
+        DbgPrint("ProtocolBlockAddress %llx OpenQueueAddress %llx\r\n", ProtocolBlockAddress, OpenQueueAddress);
+        AddProtocolToTreeList(ObjectVersion, ProtocolBlockAddress, OpenQueueAddress);
+
+        ProtocolBlockAddress = GetNextProtocol(ObjectVersion);
+
+        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
+
+    } while (ProtocolBlockAddress != 0);
 }
 
 /*
@@ -89,6 +260,100 @@ VOID OnResize(
 }
 
 /*
+* ListViewCompareFunc
+*
+* Purpose:
+*
+* ListView comparer function.
+*
+*/
+INT CALLBACK ListViewCompareFunc(
+    _In_ LPARAM lParam1,
+    _In_ LPARAM lParam2,
+    _In_ LPARAM lParamSort
+)
+{
+    INT nResult;
+
+    switch (lParamSort) {
+
+    case 0: //text value
+
+        nResult = g_ctx.ParamBlock.uiGetMaxCompareTwoFixedStrings(g_ctx.ListView,
+            lParam1,
+            lParam2,
+            lParamSort,
+            g_ctx.bInverseSort);
+
+        break;
+
+    default: // address
+
+        nResult = g_ctx.ParamBlock.uiGetMaxOfTwoU64FromHex(g_ctx.ListView,
+            lParam1,
+            lParam2,
+            lParamSort,
+            g_ctx.bInverseSort);
+
+        break;
+    }
+
+    return nResult;
+}
+
+/*
+* OnNotify
+*
+* Purpose:
+*
+* WM_NOTIFY handler.
+*
+*/
+VOID OnNotify(
+    _In_ LPNMLISTVIEW nhdr)
+{
+    INT i, SortColumn, ImageIndex;
+    LVCOLUMN col;
+
+    if (nhdr->hdr.hwndFrom != g_ctx.ListView)
+        return;
+
+    switch (nhdr->hdr.code) {
+
+    case LVN_COLUMNCLICK:
+        DbgPrint("Column click\r\n");
+        g_ctx.bInverseSort = !g_ctx.bInverseSort;
+        SortColumn = ((NMLISTVIEW *)nhdr)->iSubItem;
+
+        ListView_SortItemsEx(g_ctx.ListView, &ListViewCompareFunc, SortColumn);
+
+        ImageIndex = ImageList_GetImageCount(g_ctx.ImageList);
+        if (g_ctx.bInverseSort)
+            ImageIndex -= 2;
+        else
+            ImageIndex -= 1;
+
+        RtlSecureZeroMemory(&col, sizeof(col));
+        col.mask = LVCF_IMAGE;
+
+        for (i = 0; i < g_ctx.lvColumnCount; i++) {
+            if (i == SortColumn) {
+                col.iImage = ImageIndex;
+            }
+            else {
+                col.iImage = I_IMAGENONE;
+            }
+            ListView_SetColumn(g_ctx.ListView, i, &col);
+        }
+
+        break;
+
+    default:
+        break;
+    }
+}
+
+/*
 * MainWindowProc
 *
 * Purpose:
@@ -104,6 +369,7 @@ LRESULT CALLBACK MainWindowProc(
 )
 {
     INT dy;
+    LPNMLISTVIEW nhdr = (LPNMLISTVIEW)lParam;
 
     switch (uMsg) {
 
@@ -159,6 +425,10 @@ LRESULT CALLBACK MainWindowProc(
     case WM_CLOSE:
         PostQuitMessage(0);
         break;
+
+    case WM_NOTIFY:
+        OnNotify(nhdr);
+        break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
@@ -175,6 +445,7 @@ DWORD WINAPI PluginThread(
     _In_ PVOID Parameter
 )
 {
+    HICON       hIcon;
     LONG_PTR    wndStyles;
     HWND        MainWindow;
     WNDCLASSEX  wincls;
@@ -285,19 +556,48 @@ DWORD WINAPI PluginThread(
         if (g_ctx.ListView == 0)
             break;
 
-        //
-        // Init listview.
-        //
         ListView_SetExtendedListViewStyle(g_ctx.ListView,
             LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_LABELTIP | LVS_EX_DOUBLEBUFFER);
+
+        //
+        // Image list for sorting column images.
+        //
+        g_ctx.ImageList = ImageList_Create(
+            16,
+            16,
+            ILC_COLOR32 | ILC_MASK,
+            2,
+            2);
+
+        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.hInstance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORTUP), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+        if (hIcon) {
+            ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
+            DestroyIcon(hIcon);
+        }
+        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.hInstance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORTDOWN), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+        if (hIcon) {
+            ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
+            DestroyIcon(hIcon);
+        }
+        ListView_SetImageList(g_ctx.ListView, g_ctx.ImageList, LVSIL_SMALL);
+
+        //
+        // Init listview columns.
+        //
         SetWindowTheme(g_ctx.ListView, TEXT("Explorer"), NULL);
 
         RtlSecureZeroMemory(&col, sizeof(col));
-        col.mask = LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT | LVCF_WIDTH | LVCF_ORDER;
+        col.mask = LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT | LVCF_WIDTH | LVCF_ORDER | LVCF_IMAGE;
         col.iSubItem++;
         col.pszText = TEXT("Value");
-        col.fmt = LVCFMT_LEFT;
+        col.fmt = LVCFMT_LEFT | LVCFMT_BITMAP_ON_RIGHT;
         col.cx = 300;
+        if (g_ctx.ImageList) {
+            col.iImage = ImageList_GetImageCount(g_ctx.ImageList) - 1;
+        }
+        else {
+            col.iImage = I_IMAGENONE;
+        }
         ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
 
         col.fmt = LVCFMT_LEFT;
@@ -305,7 +605,13 @@ DWORD WINAPI PluginThread(
         col.pszText = TEXT("Address");
         col.iOrder++;
         col.cx = 130;
+        col.iImage = I_IMAGENONE;
         ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
+
+        //
+        // Remember column count.
+        //
+        g_ctx.lvColumnCount = 2;
 
         //
         // Init treelist.
@@ -345,6 +651,14 @@ DWORD WINAPI PluginThread(
         } while ((rv != 0) || (g_PluginQuit));
 
     } while (FALSE);
+
+    if (g_ctx.ClassAtom)
+        UnregisterClass(MAKEINTATOM(g_ctx.ClassAtom), g_ThisDLL);
+
+    if (g_ctx.ImageList)
+        ImageList_Destroy(g_ctx.ImageList);
+
+    InterlockedExchange((PLONG)&g_PluginQuit, 1);
 
     ExitThread(0);
 }
@@ -402,9 +716,6 @@ void CALLBACK StopPlugin(
         }
         CloseHandle(g_ctx.WorkerThread);
         g_ctx.WorkerThread = NULL;
-
-        if (g_ctx.ClassAtom)
-            UnregisterClass(MAKEINTATOM(g_ctx.ClassAtom), g_ThisDLL);
 
         HeapDestroy(g_ctx.PluginHeap);
     }

@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        23 June 2019
+*  DATE:        25 June 2019
 *
 *  Plugin manager.
 *
@@ -290,12 +290,24 @@ VOID PluginManagerProcessEntry(
             RtlSecureZeroMemory(&ParamBlock, sizeof(ParamBlock));
             ParamBlock.ParentWindow = ParentWindow;
             ParamBlock.hInstance = g_WinObj.hInstance;
+            ParamBlock.SystemRangeStart = g_kdctx.SystemRangeStart;
+
+            //
+            // Function pointers.
+            // 
+            // System
+            //
             ParamBlock.GetSystemInfoEx = (pfnGetSystemInfoEx)&supGetSystemInfoEx;
             ParamBlock.ReadSystemMemoryEx = (pfnReadSystemMemoryEx)&kdReadSystemMemoryEx;
             ParamBlock.GetInstructionLength = (pfnGetInstructionLength)&kdGetInstructionLength;
             ParamBlock.FindModuleEntryByName = (pfnFindModuleEntryByName)&supFindModuleEntryByName;
             ParamBlock.FindModuleEntryByAddress = (pfnFindModuleEntryByAddress)&supFindModuleEntryByAddress;
             ParamBlock.FindModuleNameByAddress = (pfnFindModuleNameByAddress)&supFindModuleNameByAddress;
+            //
+            // UI related functions.
+            //
+            ParamBlock.uiGetMaxCompareTwoFixedStrings = (pfnuiGetMaxCompareTwoFixedStrings)&supGetMaxCompareTwoFixedStrings;
+            ParamBlock.uiGetMaxOfTwoU64FromHex = (pfnuiGetMaxOfTwoU64FromHex)&supGetMaxOfTwoU64FromHex;
 
             RtlCopyMemory(&ParamBlock.osver, &g_WinObj.osver, sizeof(RTL_OSVERSIONINFOW));
 

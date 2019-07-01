@@ -1,3 +1,6 @@
+v1.8.0
+improved run as localsystem feature
+
 v1.7.4
 added software licensing cache view (extras)
 resolve apisets while viewing shadow table in Windows 10 20H1 >= 18890 builds

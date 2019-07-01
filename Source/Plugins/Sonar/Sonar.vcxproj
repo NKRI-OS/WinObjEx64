@@ -86,6 +86,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\WinObjEx64\minirtl\strtou64.c" />
     <ClCompile Include="..\..\WinObjEx64\minirtl\_strcat.c" />
     <ClCompile Include="..\..\WinObjEx64\minirtl\_strcpy.c" />
     <ClCompile Include="..\..\WinObjEx64\minirtl\_strend.c" />

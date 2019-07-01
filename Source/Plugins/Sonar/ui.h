@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        23 June 2019
+*  DATE:        26 June 2019
 *
 *  WinObjEx64 Sonar UI constants, definitions and includes.
 *
@@ -24,7 +24,10 @@
 
 #define SONAR_WNDTITLE L"Sonar"
 #define SONAR_WNDCLASS L"SonarWndClass"
-#define WINOBJEX64_ICON_MAIN 174
+
+#define WINOBJEX64_ICON_MAIN        174
+#define WINOBJEX64_ICON_SORTUP      6001
+#define WINOBJEX64_ICON_SORTDOWN    6002
 
 #define Y_SPLITTER_SIZE 4
 #define Y_SPLITTER_MIN  100
@@ -44,3 +47,11 @@ typedef struct _SONARCONTEXT {
     WINOBJEX_PARAM_BLOCK ParamBlock;
 } SONARCONTEXT, *PSONARCONTEXT;
 
+typedef struct _TL_SUBITEMS_FIXED {
+    ULONG       ColorFlags;
+    COLORREF    BgColor;
+    COLORREF    FontColor;
+    PVOID       UserParam;
+    ULONG       Count;
+    LPTSTR      Text[2];
+} TL_SUBITEMS_FIXED, *PTL_SUBITEMS_FIXED;
