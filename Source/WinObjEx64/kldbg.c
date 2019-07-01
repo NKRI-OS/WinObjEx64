@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        22 June 2019
+*  DATE:        30 June 2019
 *
 *  MINIMUM SUPPORTED OS WINDOWS 7
 *
@@ -2488,10 +2488,12 @@ BOOLEAN kdConnectDriver(
 
         if (NT_SUCCESS(status)) {
             g_kdctx.hDevice = deviceHandle;
+            g_kdctx.drvOpenLoadStatus = ERROR_SUCCESS;
             return TRUE;
         }
         else {
             supEnablePrivilege(SE_DEBUG_PRIVILEGE, FALSE);
+            g_kdctx.drvOpenLoadStatus = ERROR_NOT_CAPABLE;
         }
     }
 

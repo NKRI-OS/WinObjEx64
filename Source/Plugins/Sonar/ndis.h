@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        23 June 2019
+*  DATE:        30 June 2019
 *
 *  Common header file for the NDIS related definitions/structures.
 *
@@ -1271,7 +1271,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9200
     {
         /* 0x0080 */ PVOID PnPEventHandler;
         /* 0x0080 */ PVOID NetPnPEventHandler;
-    }; /* size: 0x0008 */
+    } u1; /* size: 0x0008 */
     /* 0x0088 */ PVOID UnloadHandler;
     /* 0x0090 */ PVOID UninstallHandler;
     /* 0x0098 */ PVOID RequestCompleteHandler;
@@ -1279,7 +1279,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9200
     {
         /* 0x00a0 */ PVOID StatusHandlerEx;
         /* 0x00a0 */ PVOID StatusHandler;
-    }; /* size: 0x0008 */
+    } u2; /* size: 0x0008 */
     /* 0x00a8 */ PVOID StatusCompleteHandler;
     /* 0x00b0 */ PVOID ReceiveNetBufferListsHandler;
     /* 0x00b8 */ PVOID SendNetBufferListsCompleteHandler;
@@ -1287,7 +1287,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9200
     {
         /* 0x00c0 */ PVOID CoStatusHandlerEx;
         /* 0x00c0 */ PVOID CoStatusHandler;
-    }; /* size: 0x0008 */
+    } u3; /* size: 0x0008 */
     /* 0x00c8 */ PVOID CoAfRegisterNotifyHandler;
     /* 0x00d0 */ PVOID CoReceiveNetBufferListsHandler;
     /* 0x00d8 */ PVOID CoSendNetBufferListsCompleteHandler;
@@ -1297,18 +1297,18 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9200
     {
         /* 0x00f0 */ PVOID SendCompleteHandler;
         /* 0x00f0 */ PVOID WanSendCompleteHandler;
-    }; /* size: 0x0008 */
+    } u4; /* size: 0x0008 */
     union
     {
         /* 0x00f8 */ PVOID TransferDataCompleteHandler;
         /* 0x00f8 */ PVOID WanTransferDataCompleteHandler;
-    }; /* size: 0x0008 */
+    } u5; /* size: 0x0008 */
     /* 0x0100 */ PVOID ResetCompleteHandler;
     union
     {
         /* 0x0108 */ PVOID ReceiveHandler;
         /* 0x0108 */ PVOID WanReceiveHandler;
-    }; /* size: 0x0008 */
+    } u6; /* size: 0x0008 */
     /* 0x0110 */ PVOID ReceiveCompleteHandler;
     /* 0x0118 */ PVOID ReceivePacketHandler;
     /* 0x0120 */ PVOID BindAdapterHandler;
@@ -1375,7 +1375,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9600_17134
     {
         /* 0x0080 */ PVOID PnPEventHandler;
         /* 0x0080 */ PVOID NetPnPEventHandler;
-    }; /* size: 0x0008 */
+    } u1; /* size: 0x0008 */
     /* 0x0088 */ PVOID UnloadHandler;
     /* 0x0090 */ PVOID UninstallHandler;
     /* 0x0098 */ PVOID RequestCompleteHandler;
@@ -1383,7 +1383,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9600_17134
     {
         /* 0x00a0 */ PVOID StatusHandlerEx;
         /* 0x00a0 */ PVOID StatusHandler;
-    }; /* size: 0x0008 */
+    } u2; /* size: 0x0008 */
     /* 0x00a8 */ PVOID StatusCompleteHandler;
     /* 0x00b0 */ PVOID ReceiveNetBufferListsHandler;
     /* 0x00b8 */ PVOID SendNetBufferListsCompleteHandler;
@@ -1391,7 +1391,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9600_17134
     {
         /* 0x00c0 */ PVOID CoStatusHandlerEx;
         /* 0x00c0 */ PVOID CoStatusHandler;
-    }; /* size: 0x0008 */
+    } u3; /* size: 0x0008 */
     /* 0x00c8 */ PVOID CoAfRegisterNotifyHandler;
     /* 0x00d0 */ PVOID CoReceiveNetBufferListsHandler;
     /* 0x00d8 */ PVOID CoSendNetBufferListsCompleteHandler;
@@ -1401,18 +1401,18 @@ typedef struct _NDIS_PROTOCOL_BLOCK_9600_17134
     {
         /* 0x00f0 */ PVOID SendCompleteHandler;
         /* 0x00f0 */ PVOID WanSendCompleteHandler;
-    }; /* size: 0x0008 */
+    } u4; /* size: 0x0008 */
     union
     {
         /* 0x00f8 */ PVOID TransferDataCompleteHandler;
         /* 0x00f8 */ PVOID WanTransferDataCompleteHandler;
-    }; /* size: 0x0008 */
+    } u5; /* size: 0x0008 */
     /* 0x0100 */ PVOID ResetCompleteHandler;
     union
     {
         /* 0x0108 */ PVOID ReceiveHandler;
         /* 0x0108 */ PVOID WanReceiveHandler;
-    }; /* size: 0x0008 */
+    } u6; /* size: 0x0008 */
     /* 0x0110 */ PVOID ReceiveCompleteHandler;
     /* 0x0118 */ PVOID ReceivePacketHandler;
     /* 0x0120 */ PVOID BindAdapterHandler;
@@ -1481,7 +1481,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_17763
     {
         /* 0x0080 */ PVOID PnPEventHandler;
         /* 0x0080 */ PVOID NetPnPEventHandler;
-    }; /* size: 0x0008 */
+    } u1; /* size: 0x0008 */
     /* 0x0088 */ PVOID UnloadHandler;
     /* 0x0090 */ PVOID UninstallHandler;
     /* 0x0098 */ PVOID RequestCompleteHandler;
@@ -1489,7 +1489,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_17763
     {
         /* 0x00a0 */ PVOID StatusHandlerEx;
         /* 0x00a0 */ PVOID StatusHandler;
-    }; /* size: 0x0008 */
+    } u2; /* size: 0x0008 */
     /* 0x00a8 */ PVOID StatusCompleteHandler;
     /* 0x00b0 */ PVOID ReceiveNetBufferListsHandler;
     /* 0x00b8 */ PVOID SendNetBufferListsCompleteHandler;
@@ -1497,7 +1497,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_17763
     {
         /* 0x00c0 */ PVOID CoStatusHandlerEx;
         /* 0x00c0 */ PVOID CoStatusHandler;
-    }; /* size: 0x0008 */
+    } u3; /* size: 0x0008 */
     /* 0x00c8 */ PVOID CoAfRegisterNotifyHandler;
     /* 0x00d0 */ PVOID CoReceiveNetBufferListsHandler;
     /* 0x00d8 */ PVOID CoSendNetBufferListsCompleteHandler;
@@ -1507,18 +1507,18 @@ typedef struct _NDIS_PROTOCOL_BLOCK_17763
     {
         /* 0x00f0 */ PVOID SendCompleteHandler;
         /* 0x00f0 */ PVOID WanSendCompleteHandler;
-    }; /* size: 0x0008 */
+    } u4; /* size: 0x0008 */
     union
     {
         /* 0x00f8 */ PVOID TransferDataCompleteHandler;
         /* 0x00f8 */ PVOID WanTransferDataCompleteHandler;
-    }; /* size: 0x0008 */
+    } u5; /* size: 0x0008 */
     /* 0x0100 */ PVOID ResetCompleteHandler;
     union
     {
         /* 0x0108 */ PVOID ReceiveHandler;
         /* 0x0108 */ PVOID WanReceiveHandler;
-    }; /* size: 0x0008 */
+    } u6; /* size: 0x0008 */
     /* 0x0110 */ PVOID ReceiveCompleteHandler;
     /* 0x0118 */ PVOID ReceivePacketHandler;
     /* 0x0120 */ PVOID BindAdapterHandler;
@@ -1575,7 +1575,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_18362
     {
         /* 0x0080 */ PVOID PnPEventHandler;
         /* 0x0080 */ PVOID NetPnPEventHandler;
-    }; /* size: 0x0008 */
+    } u1; /* size: 0x0008 */
     /* 0x0088 */ PVOID UnloadHandler;
     /* 0x0090 */ PVOID UninstallHandler;
     /* 0x0098 */ PVOID RequestCompleteHandler;
@@ -1583,7 +1583,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_18362
     {
         /* 0x00a0 */ PVOID StatusHandlerEx;
         /* 0x00a0 */ PVOID StatusHandler;
-    }; /* size: 0x0008 */
+    } u2; /* size: 0x0008 */
     /* 0x00a8 */ PVOID StatusCompleteHandler;
     /* 0x00b0 */ PVOID ReceiveNetBufferListsHandler;
     /* 0x00b8 */ PVOID SendNetBufferListsCompleteHandler;
@@ -1591,7 +1591,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_18362
     {
         /* 0x00c0 */ PVOID CoStatusHandlerEx;
         /* 0x00c0 */ PVOID CoStatusHandler;
-    }; /* size: 0x0008 */
+    } u3; /* size: 0x0008 */
     /* 0x00c8 */ PVOID CoAfRegisterNotifyHandler;
     /* 0x00d0 */ PVOID CoReceiveNetBufferListsHandler;
     /* 0x00d8 */ PVOID CoSendNetBufferListsCompleteHandler;
@@ -1601,18 +1601,18 @@ typedef struct _NDIS_PROTOCOL_BLOCK_18362
     {
         /* 0x00f0 */ PVOID SendCompleteHandler;
         /* 0x00f0 */ PVOID WanSendCompleteHandler;
-    }; /* size: 0x0008 */
+    } u4; /* size: 0x0008 */
     union
     {
         /* 0x00f8 */ PVOID TransferDataCompleteHandler;
         /* 0x00f8 */ PVOID WanTransferDataCompleteHandler;
-    }; /* size: 0x0008 */
+    } u5; /* size: 0x0008 */
     /* 0x0100 */ PVOID ResetCompleteHandler;
     union
     {
         /* 0x0108 */ PVOID ReceiveHandler;
         /* 0x0108 */ PVOID WanReceiveHandler;
-    }; /* size: 0x0008 */
+    } u6; /* size: 0x0008 */
     /* 0x0110 */ PVOID ReceiveCompleteHandler;
     /* 0x0118 */ PVOID ReceivePacketHandler;
     /* 0x0120 */ PVOID BindAdapterHandler;

@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        29 June 2019
+*  DATE:        30 June 2019
 *
 *  WinObjEx64 Sonar plugin.
 *
@@ -64,12 +64,14 @@ VOID ListOpenQueue(
     _In_ ULONG_PTR OpenQueueAddress
 )
 {
-    ULONG ObjectSize, ObjectVersion;
-    PVOID ObjectPtr;
-
+    ULONG   ObjectSize, ObjectVersion;
+    PVOID   ObjectPtr;
+       
     ULONG_PTR ProtocolNextOpen = OpenQueueAddress;
 
     NDIS_OPEN_BLOCK_COMPATIBLE OpenBlock;
+    WCHAR szBuffer[100];
+    TL_SUBITEMS_FIXED subitems;
 
     do {
         DbgPrint("ProtocolNextOpen %llx\r\n", ProtocolNextOpen);
@@ -82,64 +84,80 @@ VOID ListOpenQueue(
         g_OpenBlock.u1.Ref = ObjectPtr;
         RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
         CreateCompatibleOpenBlock(ObjectVersion, &OpenBlock);
-        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
+
+        RtlSecureZeroMemory(&subitems, sizeof(subitems));
+        subitems.UserParam = (PVOID)NdisOpenBlock;
+        StringCchPrintf(szBuffer, 32, TEXT("0x%llX"), ProtocolNextOpen);
+        subitems.Count = 2;
+        subitems.Text[0] = szBuffer;
+        subitems.Text[1] = TEXT("");
+
+        TreeListAddItem(
+            g_ctx.TreeList,
+            hTreeRootItem,
+            TVIF_TEXT | TVIF_STATE,
+            TVIS_EXPANDED,
+            TVIS_EXPANDED,
+            TEXT("NDIS_OPEN_BLOCK"),
+            &subitems);
 
         ProtocolNextOpen = (ULONG_PTR)OpenBlock.ProtocolNextOpen;
+
+        DbgPrint("ProtocolNextOpen %llx\r\n", ProtocolNextOpen);
+        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
 
     } while (ProtocolNextOpen != 0);
 }
 
 VOID AddProtocolToTreeList(
-    _In_ ULONG ObjectVersion,
-    _In_ ULONG_PTR ProtocolAddress,
-    _In_ ULONG_PTR OpenQueueAddress
+    _In_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock,
+    _In_ ULONG_PTR ProtocolAddress
 )
 {
-    PWCHAR lpProtocolName = NULL;
-    UNICODE_STRING *usProtocol;
+    PWCHAR lpProtocolName = NULL, lpImageName = NULL;
+    UNICODE_STRING *usTemp;
 
     TL_SUBITEMS_FIXED subitems;
     HTREEITEM hTreeItem = NULL;
 
     WCHAR szBuffer[32];
 
-    switch (ObjectVersion) {
+    usTemp = &ProtoBlock->Name;
 
-    case 1:
-        usProtocol = &g_ProtocolBlock.u1.Versions.v1->Name;
-        break;
-    case 2:
-        usProtocol = &g_ProtocolBlock.u1.Versions.v2->Name;
-        break;
-    case 3:
-        usProtocol = &g_ProtocolBlock.u1.Versions.v3->Name;
-        break;
-    case 4:
-        usProtocol = &g_ProtocolBlock.u1.Versions.v4->Name;
-        break;
-    case 5:
-        usProtocol = &g_ProtocolBlock.u1.Versions.v5->Name;
-        break;
-
-    default:
-        usProtocol = NULL;
-        break;
-    }
-
-    if (usProtocol == NULL) {
-        return;
-    }
-
-    lpProtocolName = (PWCHAR)DumpUnicodeString((ULONG_PTR)usProtocol->Buffer,
-        usProtocol->Length,
-        usProtocol->MaximumLength,
+    lpProtocolName = (PWCHAR)DumpUnicodeString((ULONG_PTR)usTemp->Buffer,
+        usTemp->Length,
+        usTemp->MaximumLength,
         FALSE);
 
     if (lpProtocolName) {
-        subitems.UserParam = (PVOID)NdisOpenProtocol;
-        StringCchPrintf(szBuffer, 32, TEXT("%llx"), ProtocolAddress);
-        subitems.Count = 1;
+        RtlSecureZeroMemory(&subitems, sizeof(subitems));
+        subitems.UserParam = (PVOID)NdisProtocolBlock;
+        StringCchPrintf(szBuffer, 32, TEXT("0x%llX"), ProtocolAddress);
+        subitems.Count = 2;
         subitems.Text[0] = szBuffer;
+
+        DbgPrint("ImageName, Buffer %llx, Length = %lu, MaximumLength = %lu\r\n", ProtoBlock->ImageName.Buffer,
+            ProtoBlock->ImageName.Length,
+            ProtoBlock->ImageName.MaximumLength);
+
+        if (ProtoBlock->ImageName.Length == 0) {
+            subitems.Text[1] = TEXT("");
+        }
+        else {         
+
+            usTemp = &ProtoBlock->ImageName;
+            lpImageName = (PWCHAR)DumpUnicodeString((ULONG_PTR)usTemp->Buffer,
+                usTemp->Length,
+                usTemp->MaximumLength,
+                FALSE);
+
+            if (lpImageName) {
+                subitems.Text[1] = lpImageName;
+            }
+            else {
+                subitems.Text[1] = TEXT("Unknown image");
+            }
+        }
 
         hTreeItem = TreeListAddItem(
             g_ctx.TreeList,
@@ -150,8 +168,12 @@ VOID AddProtocolToTreeList(
             lpProtocolName,
             &subitems);
 
-        if (OpenQueueAddress > g_ctx.ParamBlock.SystemRangeStart) {
-            ListOpenQueue(hTreeItem, OpenQueueAddress);
+        if (lpImageName)
+            HeapFree(g_ctx.PluginHeap, 0, lpImageName);
+
+
+        if ((ULONG_PTR)ProtoBlock->OpenQueue > g_ctx.ParamBlock.SystemRangeStart) {
+            ListOpenQueue(hTreeItem, (ULONG_PTR)ProtoBlock->OpenQueue);
         }
 
         HeapFree(g_ctx.PluginHeap, 0, lpProtocolName);
@@ -174,8 +196,10 @@ VOID ListProtocols()
     ULONG ObjectSize;
     PVOID ObjectPtr;
 
+    NDIS_PROTOCOL_BLOCK_COMPATIBLE ProtoBlock;
+
     ULONG_PTR ndisProtocolList = QueryProtocolList();
-    ULONG_PTR ProtocolBlockAddress = 0, OpenQueueAddress = 0;
+    ULONG_PTR ProtocolBlockAddress = 0;
 
     if (ndisProtocolList == 0) {
         SHOW_ERROR(TEXT("Could not query ndisProtocolList variable address, abort."));
@@ -211,12 +235,13 @@ VOID ListProtocols()
         }
         g_ProtocolBlock.u1.Ref = ObjectPtr;
 
-        OpenQueueAddress = GetProtocolOpenQueue(ObjectVersion);
+        RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
+        CreateCompatibleProtocolBlock(ObjectVersion, &ProtoBlock);
 
-        DbgPrint("ProtocolBlockAddress %llx OpenQueueAddress %llx\r\n", ProtocolBlockAddress, OpenQueueAddress);
-        AddProtocolToTreeList(ObjectVersion, ProtocolBlockAddress, OpenQueueAddress);
+        DbgPrint("ProtocolBlockAddress %llx OpenQueueAddress %llx\r\n", ProtocolBlockAddress, (ULONG_PTR)ProtoBlock.OpenQueue);
+        AddProtocolToTreeList(&ProtoBlock, ProtocolBlockAddress);
 
-        ProtocolBlockAddress = GetNextProtocol(ObjectVersion);
+        ProtocolBlockAddress = (ULONG_PTR)ProtoBlock.NextProtocol;
 
         HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
 
@@ -569,12 +594,12 @@ DWORD WINAPI PluginThread(
             2,
             2);
 
-        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.hInstance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORTUP), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+        hIcon = (HICON)LoadImage(g_ThisDLL, MAKEINTRESOURCE(IDI_ICON_SORT_UP), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
         if (hIcon) {
             ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
             DestroyIcon(hIcon);
         }
-        hIcon = (HICON)LoadImage(g_ctx.ParamBlock.hInstance, MAKEINTRESOURCE(WINOBJEX64_ICON_SORTDOWN), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
+        hIcon = (HICON)LoadImage(g_ThisDLL, MAKEINTRESOURCE(IDI_ICON_SORT_DOWN), IMAGE_ICON, 0, 0, LR_DEFAULTCOLOR);
         if (hIcon) {
             ImageList_ReplaceIcon(g_ctx.ImageList, -1, hIcon);
             DestroyIcon(hIcon);
@@ -584,7 +609,6 @@ DWORD WINAPI PluginThread(
         //
         // Init listview columns.
         //
-        SetWindowTheme(g_ctx.ListView, TEXT("Explorer"), NULL);
 
         RtlSecureZeroMemory(&col, sizeof(col));
         col.mask = LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT | LVCF_WIDTH | LVCF_ORDER | LVCF_IMAGE;
@@ -627,9 +651,15 @@ DWORD WINAPI PluginThread(
         hdritem.pszText = TEXT("Object");
         TreeList_InsertHeaderItem(g_ctx.TreeList, 1, &hdritem);
 
+        hdritem.cxy = 2000;
+        hdritem.pszText = TEXT("Additional Information");
+        TreeList_InsertHeaderItem(g_ctx.TreeList, 2, &hdritem);
+
         wndStyles = GetWindowLongPtr(g_ctx.TreeList, GWL_STYLE);
         SetWindowLongPtr(g_ctx.TreeList, GWL_STYLE, wndStyles | TLSTYLE_LINKLINES);
+
         SetWindowTheme(g_ctx.TreeList, TEXT("Explorer"), NULL);
+        SetWindowTheme(g_ctx.ListView, TEXT("Explorer"), NULL);
 
         OnResize(MainWindow);
 

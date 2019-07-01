@@ -53,7 +53,7 @@ typedef struct _OPEN_BLOCK_VERSIONS {
 } OPEN_BLOCK_VERSIONS, *POPEN_BLOCK_VERSIONS;
 
 enum _NDIS_OBJECT_TYPE {
-    NdisOpenProtocol = 1,
+    NdisProtocolBlock = 1,
     NdisOpenBlock,
     NdisMDriverBlock,
     NdisInvalidType
@@ -136,7 +136,76 @@ typedef struct _NDIS_OPEN_BLOCK_COMPATIBLE{
 } NDIS_OPEN_BLOCK_COMPATIBLE, *PNDIS_OPEN_BLOCK_COMPATIBLE;
 
 typedef struct _NDIS_PROTOCOL_BLOCK_COMPATIBLE {
-    PVOID Reserved;
+    UNICODE_STRING Name;
+    UNICODE_STRING ImageName;
+
+    PVOID NextProtocol;
+    PVOID OpenQueue;
+
+    UCHAR MajorNdisVersion;
+    UCHAR MinorNdisVersion;
+    UCHAR MajorDriverVersion;
+    UCHAR MinorDriverVersion;
+
+    PVOID BindAdapterHandlerEx;
+    PVOID UnbindAdapterHandlerEx;
+    PVOID OpenAdapterCompleteHandlerEx;
+    PVOID CloseAdapterCompleteHandlerEx;
+    PVOID PnPEventHandler;
+
+    PVOID UnloadHandler;
+    PVOID UninstallHandler;
+    PVOID RequestCompleteHandler;
+
+    PVOID StatusHandler;
+
+    PVOID StatusCompleteHandler;
+    PVOID ReceiveNetBufferListsHandler;
+    PVOID SendNetBufferListsCompleteHandler;
+
+    PVOID CoStatusHandler;
+
+    PVOID CoAfRegisterNotifyHandler;
+    PVOID CoReceiveNetBufferListsHandler;
+    PVOID CoSendNetBufferListsCompleteHandler;
+    PVOID OpenAdapterCompleteHandler;
+    PVOID CloseAdapterCompleteHandler;
+
+    PVOID SendCompleteHandler;
+
+    PVOID TransferDataCompleteHandler;
+
+    PVOID ResetCompleteHandler;
+
+    PVOID ReceiveHandler;
+
+    PVOID ReceiveCompleteHandler;
+    PVOID ReceivePacketHandler;
+    PVOID BindAdapterHandler;
+    PVOID UnbindAdapterHandler;
+    PVOID CoSendCompleteHandler;
+    PVOID CoReceivePacketHandler;
+    PVOID OidRequestCompleteHandler;
+
+    UNICODE_STRING* BindDeviceName;
+    UNICODE_STRING* RootDeviceName;
+
+    PVOID InitiateOffloadCompleteHandler;
+    PVOID TerminateOffloadCompleteHandler;
+    PVOID UpdateOffloadCompleteHandler;
+    PVOID InvalidateOffloadCompleteHandler;
+    PVOID QueryOffloadCompleteHandler;
+    PVOID IndicateOffloadEventHandler;
+    PVOID TcpOffloadSendCompleteHandler;
+    PVOID TcpOffloadReceiveCompleteHandler;
+    PVOID TcpOffloadDisconnectCompleteHandler;
+    PVOID TcpOffloadForwardCompleteHandler;
+    PVOID TcpOffloadEventHandler;
+    PVOID TcpOffloadReceiveIndicateHandler;
+    PVOID DirectOidRequestCompleteHandler;
+    PVOID AllocateSharedMemoryHandler;
+    PVOID FreeSharedMemoryHandler;
+
 } NDIS_PROTOCOL_BLOCK_COMPATIBLE, *PNDIS_PROTOCOL_BLOCK_COMPATIBLE;
 
 ULONG_PTR QueryProtocolList();
@@ -158,9 +227,6 @@ PVOID DumpUnicodeString(
     _In_ BOOLEAN IsPtr);
 
 ULONG_PTR GetNextProtocol(
-    _In_ ULONG ObjectVersion);
-
-ULONG_PTR GetProtocolOpenQueue(
     _In_ ULONG ObjectVersion);
 
 ULONG GetNextProtocolOffset(

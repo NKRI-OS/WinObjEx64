@@ -3901,7 +3901,7 @@ BOOL supRunAsLocalSystem(
 
         if (!NT_SUCCESS(Status)) {
 
-            supShowNtStatus(hwndParent, TEXT("Error duplicating primary token, code 0x"), Status);
+            supShowNtStatus(hwndParent, TEXT("Error while impersonating primary token, code 0x"), Status);
             break;
         }
 
