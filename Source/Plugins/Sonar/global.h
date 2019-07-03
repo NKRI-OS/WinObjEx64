@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        23 June 2019
+*  DATE:        01 July 2019
 *
 *  Common header file for the Windows Object Explorer Sonar plugin.
 *
@@ -37,6 +37,7 @@
 #pragma warning(pop)
 #include "ntos/ntos.h"
 #include "treelist/treelist.h"
+#include "minirtl/minirtl.h"
 #include "plugin_def.h"
 #include "ui.h"
 #include "resource.h"

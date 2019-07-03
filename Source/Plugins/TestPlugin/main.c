@@ -137,7 +137,7 @@ BOOLEAN CALLBACK PluginInit(
         PluginData->StopPlugin = (pfnStopPlugin)&StopPlugin;
 
         //
-        // Setup permisions.
+        // Setup permissions.
         //
         PluginData->NeedAdmin = FALSE;
         PluginData->SupportWine = TRUE;

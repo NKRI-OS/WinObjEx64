@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        26 June 2019
+*  DATE:        01 July 2019
 *
 *  WinObjEx64 Sonar UI constants, definitions and includes.
 *

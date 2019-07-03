@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        29 June 2019
+*  DATE:        01 July 2019
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -52,15 +52,12 @@ typedef struct _OPEN_BLOCK_VERSIONS {
     } u1;
 } OPEN_BLOCK_VERSIONS, *POPEN_BLOCK_VERSIONS;
 
-enum _NDIS_OBJECT_TYPE {
-    NdisProtocolBlock = 1,
-    NdisOpenBlock,
-    NdisMDriverBlock,
-    NdisInvalidType
+typedef enum _NDIS_OBJECT_TYPE {
+    NdisObjectTypeProtocolBlock = 1,
+    NdisObjectTypeOpenBlock,
+    NdisObjectTypeMDriverBlock,
+    NdisObjectTypeInvalid
 } NDIS_OBJECT_TYPE;
-
-extern PROTOCOL_BLOCK_VERSIONS g_ProtocolBlock;
-extern OPEN_BLOCK_VERSIONS g_OpenBlock;
 
 //
 // Structure for dump convertion, only handlers, flags, unicode strings.
@@ -74,7 +71,6 @@ typedef struct _NDIS_OPEN_BLOCK_COMPATIBLE{
     PVOID NextSendHandler;
     PVOID NextReturnNetBufferListsHandler;
     PVOID SendHandler;
-
     PVOID TransferDataHandler;
     PVOID SendCompleteHandler;
     PVOID TransferDataCompleteHandler;
@@ -88,6 +84,14 @@ typedef struct _NDIS_OPEN_BLOCK_COMPATIBLE{
     PVOID RequestHandler;
     PVOID OidRequestHandler;
     PVOID ResetCompleteHandler;
+
+    PVOID StatusHandler;
+    PVOID StatusCompleteHandler;
+
+    PVOID WSendHandler;
+    PVOID WTransferDataHandler;
+    PVOID WSendPacketsHandler;
+    PVOID CancelSendPacketsHandler;
 
     PVOID ProtSendNetBufferListsComplete;
     PVOID ReceiveNetBufferLists;
@@ -138,6 +142,8 @@ typedef struct _NDIS_OPEN_BLOCK_COMPATIBLE{
 typedef struct _NDIS_PROTOCOL_BLOCK_COMPATIBLE {
     UNICODE_STRING Name;
     UNICODE_STRING ImageName;
+    UNICODE_STRING* BindDeviceName;
+    UNICODE_STRING* RootDeviceName;
 
     PVOID NextProtocol;
     PVOID OpenQueue;
@@ -187,9 +193,6 @@ typedef struct _NDIS_PROTOCOL_BLOCK_COMPATIBLE {
     PVOID CoReceivePacketHandler;
     PVOID OidRequestCompleteHandler;
 
-    UNICODE_STRING* BindDeviceName;
-    UNICODE_STRING* RootDeviceName;
-
     PVOID InitiateOffloadCompleteHandler;
     PVOID TerminateOffloadCompleteHandler;
     PVOID UpdateOffloadCompleteHandler;
@@ -208,17 +211,125 @@ typedef struct _NDIS_PROTOCOL_BLOCK_COMPATIBLE {
 
 } NDIS_PROTOCOL_BLOCK_COMPATIBLE, *PNDIS_PROTOCOL_BLOCK_COMPATIBLE;
 
+static LPWSTR g_lpszOpenBlockHandlers[] = {
+    TEXT("NextSendHandler"),
+    TEXT("NextReturnNetBufferListsHandler"),
+    TEXT("SendHandler"),
+    TEXT("TransferDataHandler"),
+    TEXT("SendCompleteHandler"),
+    TEXT("TransferDataCompleteHandler"),
+    TEXT("ReceiveHandler"),
+    TEXT("ReceiveCompleteHandler"),
+    TEXT("WanReceiveHandler"),
+    TEXT("RequestCompleteHandler"),
+    TEXT("ReceivePacketHandler"),
+    TEXT("SendPacketsHandler"),
+    TEXT("ResetHandler"),
+    TEXT("RequestHandler"),
+    TEXT("OidRequestHandler"),
+    TEXT("ResetCompleteHandler"),
+
+    TEXT("StatusHandler"),
+    TEXT("StatusCompleteHandler"),
+
+    TEXT("WSendHandler"),
+    TEXT("WTransferDataHandler"),
+    TEXT("WSendPacketsHandler"),
+    TEXT("CancelSendPacketsHandler"),
+
+    TEXT("ProtSendNetBufferListsComplete"),
+    TEXT("ReceiveNetBufferLists"),
+    TEXT("SavedSendNBLHandler"),
+    TEXT("SavedSendPacketsHandler"),
+    TEXT("SavedCancelSendPacketsHandler"),
+
+    TEXT("SavedSendHandler"),
+
+    TEXT("InitiateOffloadCompleteHandler"),
+    TEXT("TerminateOffloadCompleteHandler"),
+    TEXT("UpdateOffloadCompleteHandler"),
+    TEXT("InvalidateOffloadCompleteHandler"),
+    TEXT("QueryOffloadCompleteHandler"),
+    TEXT("IndicateOffloadEventHandler"),
+    TEXT("TcpOffloadSendCompleteHandler"),
+    TEXT("TcpOffloadReceiveCompleteHandler"),
+    TEXT("TcpOffloadDisconnectCompleteHandler"),
+    TEXT("TcpOffloadForwardCompleteHandler"),
+    TEXT("TcpOffloadEventHandler"),
+    TEXT("TcpOffloadReceiveIndicateHandler"),
+
+    TEXT("Ndis5WanSendHandler"),
+    TEXT("ProtSendCompleteHandler"),
+    TEXT("OidRequestCompleteHandler"),
+
+    TEXT("DirectOidRequestCompleteHandler"),
+    TEXT("DirectOidRequestHandler"),
+
+    TEXT("AllocateSharedMemoryHandler"),
+    TEXT("FreeSharedMemoryHandler"),
+
+    TEXT("MiniportCoCreateVcHandler"),
+    TEXT("MiniportCoRequestHandler"),
+    TEXT("CoCreateVcHandler"),
+    TEXT("CoDeleteVcHandler"),
+    TEXT("CmActivateVcCompleteHandler"),
+    TEXT("CmDeactivateVcCompleteHandler"),
+    TEXT("CoRequestCompleteHandler"),
+    TEXT("CoRequestHandler"),
+
+    TEXT("MiniportCoOidRequestHandler"),
+    TEXT("CoOidRequestCompleteHandler"),
+    TEXT("CoOidRequestHandler")
+};
+
+static LPWSTR g_lpszProtocolBlockHandlers[] = {
+    TEXT("BindAdapterHandlerEx"),
+    TEXT("UnbindAdapterHandlerEx"),
+    TEXT("OpenAdapterCompleteHandlerEx"),
+    TEXT("CloseAdapterCompleteHandlerEx"),
+    TEXT("PnPEventHandler"),
+    TEXT("UnloadHandler"),
+    TEXT("UninstallHandler"),
+    TEXT("RequestCompleteHandler"),
+    TEXT("StatusHandler"),
+    TEXT("StatusCompleteHandler"),
+    TEXT("ReceiveNetBufferListsHandler"),
+    TEXT("SendNetBufferListsCompleteHandler"),
+    TEXT("CoStatusHandler"),
+    TEXT("CoAfRegisterNotifyHandler"),
+    TEXT("CoReceiveNetBufferListsHandler"),
+    TEXT("CoSendNetBufferListsCompleteHandler"),
+    TEXT("OpenAdapterCompleteHandler"),
+    TEXT("CloseAdapterCompleteHandler"),
+    TEXT("SendCompleteHandler"),
+    TEXT("TransferDataCompleteHandler"),
+    TEXT("ResetCompleteHandler"),
+    TEXT("ReceiveHandler"),
+    TEXT("ReceiveCompleteHandler"),
+    TEXT("ReceivePacketHandler"),
+    TEXT("BindAdapterHandler"),
+    TEXT("UnbindAdapterHandler"),
+    TEXT("CoSendCompleteHandler"),
+    TEXT("CoReceivePacketHandler"),
+    TEXT("OidRequestCompleteHandler"),
+    TEXT("InitiateOffloadCompleteHandler"),
+    TEXT("TerminateOffloadCompleteHandler"),
+    TEXT("UpdateOffloadCompleteHandler"),
+    TEXT("InvalidateOffloadCompleteHandler"),
+    TEXT("QueryOffloadCompleteHandler"),
+    TEXT("IndicateOffloadEventHandler"),
+    TEXT("TcpOffloadSendCompleteHandler"),
+    TEXT("TcpOffloadReceiveCompleteHandler"),
+    TEXT("TcpOffloadDisconnectCompleteHandler"),
+    TEXT("TcpOffloadForwardCompleteHandler"),
+    TEXT("TcpOffloadEventHandler"),
+    TEXT("TcpOffloadReceiveIndicateHandler"),
+    TEXT("DirectOidRequestCompleteHandler"),
+    TEXT("AllocateSharedMemoryHandler"),
+    TEXT("FreeSharedMemoryHandler")
+};
+
 ULONG_PTR QueryProtocolList();
-
-PVOID DumpProtocolBlockVersionAware(
-    _In_ ULONG_PTR ObjectAddress,
-    _Out_ PULONG Size,
-    _Out_ PULONG Version);
-
-PVOID DumpOpenBlockVersionAware(
-    _In_ ULONG_PTR ObjectAddress,
-    _Out_ PULONG Size,
-    _Out_ PULONG Version);
 
 PVOID DumpUnicodeString(
     _In_ ULONG_PTR Address,
@@ -226,16 +337,21 @@ PVOID DumpUnicodeString(
     _In_ WORD MaximumLength,
     _In_ BOOLEAN IsPtr);
 
-ULONG_PTR GetNextProtocol(
-    _In_ ULONG ObjectVersion);
-
 ULONG GetNextProtocolOffset(
     _In_ ULONG WindowsVersion);
 
-BOOL CreateCompatibleOpenBlock(
-    _In_ ULONG ObjectVersion,
-    _Out_ NDIS_OPEN_BLOCK_COMPATIBLE *OpenBlock);
+BOOL ReadAndConvertProtocolBlock(
+    _In_ ULONG_PTR ObjectAddress,
+    _Inout_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock,
+    _Out_opt_ PULONG ObjectVersion);
 
-BOOL CreateCompatibleProtocolBlock(
-    _In_ ULONG ObjectVersion,
-    _Out_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock);
+BOOL ReadAndConvertOpenBlock(
+    _In_ ULONG_PTR ObjectAddress,
+    _Inout_ NDIS_OPEN_BLOCK_COMPATIBLE *OpenBlock,
+    _Out_opt_ PULONG ObjectVersion);
+
+PVOID HeapMemoryAlloc(
+    _In_ SIZE_T Size);
+
+BOOL HeapMemoryFree(
+    _In_ PVOID Memory);

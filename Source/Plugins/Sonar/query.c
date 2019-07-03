@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2019
+*  DATE:        01 July 2019
 *
 *  Query NDIS specific data.
 *
@@ -53,8 +53,6 @@ NdisDeregisterProtocol
 
 #define HDE_F_ERROR 0x00001000
 
-PROTOCOL_BLOCK_VERSIONS g_ProtocolBlock;
-OPEN_BLOCK_VERSIONS g_OpenBlock;
 
 PVOID HeapMemoryAlloc(_In_ SIZE_T Size)
 {
@@ -63,6 +61,7 @@ PVOID HeapMemoryAlloc(_In_ SIZE_T Size)
 
 BOOL HeapMemoryFree(_In_ PVOID Memory)
 {
+    if (Memory == NULL) return FALSE;
     return HeapFree(g_ctx.PluginHeap, 0, Memory);
 }
 
@@ -182,8 +181,6 @@ ULONG_PTR QueryProtocolList()
     if (hModule) FreeLibrary(hModule);
     if (miSpace) HeapMemoryFree(miSpace);
 
-    DbgPrint("QueryProtocolList %llx\r\n", Result);
-
     return Result;
 }
 
@@ -194,7 +191,7 @@ ULONG_PTR QueryProtocolList()
 *
 * Return dumped object version aware.
 *
-* Use HeapFree to free returned buffer.
+* Use HeapMemoryFree to free returned buffer.
 *
 */
 PVOID DumpObjectWithSpecifiedSize(
@@ -211,7 +208,7 @@ PVOID DumpObjectWithSpecifiedSize(
     if (ReadSize) *ReadSize = 0;
     if (ReadVersion) *ReadVersion = 0;
 
-    ObjectBuffer = HeapAlloc(g_ctx.PluginHeap, HEAP_ZERO_MEMORY, BufferSize);
+    ObjectBuffer = HeapMemoryAlloc(BufferSize);
     if (ObjectBuffer == NULL) {
         return NULL;
     }
@@ -222,7 +219,7 @@ PVOID DumpObjectWithSpecifiedSize(
         (ULONG)ObjectSize,
         NULL))
     {
-        HeapFree(g_ctx.PluginHeap, 0, ObjectBuffer);
+        HeapMemoryFree(ObjectBuffer);
         return NULL;
     }
 
@@ -364,7 +361,7 @@ PVOID DumpOpenBlockVersionAware(
 *
 * Read UNICODE_STRING buffer from kernel.
 *
-* Use HeapFree to free returned buffer.
+* Use HeapMemoryFree to free returned buffer.
 *
 */
 PVOID DumpUnicodeString(
@@ -404,7 +401,7 @@ PVOID DumpUnicodeString(
     if (tempString.Length == 0 && tempString.MaximumLength == 0)
         return NULL;
 
-    DumpedString = (PVOID)HeapAlloc(g_ctx.PluginHeap, HEAP_ZERO_MEMORY, tempString.Length + MAX_PATH);
+    DumpedString = (PVOID)HeapMemoryAlloc(tempString.Length + MAX_PATH);
     if (DumpedString) {
         if (g_ctx.ParamBlock.ReadSystemMemoryEx((ULONG_PTR)tempString.Buffer,
             DumpedString,
@@ -412,7 +409,7 @@ PVOID DumpUnicodeString(
             &readBytes))
         {
             if (readBytes != tempString.Length) {
-                HeapFree(g_ctx.PluginHeap, 0, DumpedString);
+                HeapMemoryFree(DumpedString);
                 return NULL;
             }
         }
@@ -420,46 +417,6 @@ PVOID DumpUnicodeString(
     }
 
     return DumpedString;
-}
-
-/*
-* GetNextProtocol
-*
-* Purpose:
-*
-* Query next NDIS_PROTOCOL_BLOCK address.
-*
-*/
-ULONG_PTR GetNextProtocol(
-    _In_ ULONG ObjectVersion
-)
-{
-    ULONG_PTR NextProtocol = 0;
-
-    switch (ObjectVersion) {
-
-    case 1:
-        NextProtocol = (ULONG_PTR)g_ProtocolBlock.u1.Versions.v1->NextProtocol;
-        break;
-    case 2:
-        NextProtocol = (ULONG_PTR)g_ProtocolBlock.u1.Versions.v2->NextProtocol;
-        break;
-    case 3:
-        NextProtocol = (ULONG_PTR)g_ProtocolBlock.u1.Versions.v3->NextProtocol;
-        break;
-    case 4:
-        NextProtocol = (ULONG_PTR)g_ProtocolBlock.u1.Versions.v4->NextProtocol;
-        break;
-    case 5:
-        NextProtocol = (ULONG_PTR)g_ProtocolBlock.u1.Versions.v5->NextProtocol;
-        break;
-
-    default:
-        NextProtocol = 0;
-        break;
-    }
-
-    return NextProtocol;
 }
 
 /*
@@ -518,279 +475,280 @@ ULONG GetNextProtocolOffset(
 */
 BOOL CreateCompatibleProtocolBlock(
     _In_ ULONG ObjectVersion,
+    _In_ PROTOCOL_BLOCK_VERSIONS *ProtocolRef,
     _Out_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock)
 {
     switch (ObjectVersion) {
 
     case 1:
-        RtlCopyMemory(&ProtoBlock->Name, &g_ProtocolBlock.u1.Versions.v1->Name, sizeof(UNICODE_STRING));
-        RtlCopyMemory(&ProtoBlock->ImageName, &g_ProtocolBlock.u1.Versions.v1->ImageName, sizeof(UNICODE_STRING));
-        ProtoBlock->OpenQueue = g_ProtocolBlock.u1.Versions.v1->OpenQueue;
-        ProtoBlock->NextProtocol = g_ProtocolBlock.u1.Versions.v1->NextProtocol;
+        RtlCopyMemory(&ProtoBlock->Name, &ProtocolRef->u1.Versions.v1->Name, sizeof(UNICODE_STRING));
+        RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v1->ImageName, sizeof(UNICODE_STRING));
+        ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v1->OpenQueue;
+        ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v1->NextProtocol;
 
-        ProtoBlock->MajorDriverVersion = g_ProtocolBlock.u1.Versions.v1->MajorDriverVersion;
-        ProtoBlock->MajorNdisVersion = g_ProtocolBlock.u1.Versions.v1->MajorNdisVersion;
-        ProtoBlock->MinorDriverVersion = g_ProtocolBlock.u1.Versions.v1->MinorDriverVersion;
-        ProtoBlock->MinorNdisVersion = g_ProtocolBlock.u1.Versions.v1->MinorNdisVersion;
+        ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v1->MajorDriverVersion;
+        ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v1->MajorNdisVersion;
+        ProtoBlock->MinorDriverVersion = ProtocolRef->u1.Versions.v1->MinorDriverVersion;
+        ProtoBlock->MinorNdisVersion = ProtocolRef->u1.Versions.v1->MinorNdisVersion;
 
-        ProtoBlock->AllocateSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v1->AllocateSharedMemoryHandler;
-        ProtoBlock->BindAdapterHandler = g_ProtocolBlock.u1.Versions.v1->BindAdapterHandler;
-        ProtoBlock->BindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v1->BindAdapterHandlerEx;
-        ProtoBlock->BindDeviceName = g_ProtocolBlock.u1.Versions.v1->BindDeviceName;
-        ProtoBlock->CloseAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v1->CloseAdapterCompleteHandler;
-        ProtoBlock->CloseAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v1->CloseAdapterCompleteHandlerEx;
-        ProtoBlock->CoAfRegisterNotifyHandler = g_ProtocolBlock.u1.Versions.v1->CoAfRegisterNotifyHandler;
-        ProtoBlock->CoReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v1->CoReceiveNetBufferListsHandler;
-        ProtoBlock->CoReceivePacketHandler = g_ProtocolBlock.u1.Versions.v1->CoReceivePacketHandler;
-        ProtoBlock->CoSendCompleteHandler = g_ProtocolBlock.u1.Versions.v1->CoSendCompleteHandler;
-        ProtoBlock->CoSendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v1->CoSendNetBufferListsCompleteHandler;
-        ProtoBlock->CoStatusHandler = g_ProtocolBlock.u1.Versions.v1->u3.CoStatusHandler;
-        ProtoBlock->DirectOidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v1->DirectOidRequestCompleteHandler;
-        ProtoBlock->FreeSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v1->FreeSharedMemoryHandler;
-        ProtoBlock->IndicateOffloadEventHandler = g_ProtocolBlock.u1.Versions.v1->IndicateOffloadEventHandler;
-        ProtoBlock->InitiateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v1->InitiateOffloadCompleteHandler;
-        ProtoBlock->InvalidateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v1->InvalidateOffloadCompleteHandler;
-        ProtoBlock->OidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v1->OidRequestCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v1->OpenAdapterCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v1->OpenAdapterCompleteHandlerEx;
-        ProtoBlock->PnPEventHandler = g_ProtocolBlock.u1.Versions.v1->u1.PnPEventHandler;
-        ProtoBlock->QueryOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v1->QueryOffloadCompleteHandler;
-        ProtoBlock->ReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v1->ReceiveCompleteHandler;
-        ProtoBlock->ReceiveHandler = g_ProtocolBlock.u1.Versions.v1->u6.ReceiveHandler;
-        ProtoBlock->ReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v1->ReceiveNetBufferListsHandler;
-        ProtoBlock->ReceivePacketHandler = g_ProtocolBlock.u1.Versions.v1->ReceivePacketHandler;
-        ProtoBlock->RequestCompleteHandler = g_ProtocolBlock.u1.Versions.v1->RequestCompleteHandler;
-        ProtoBlock->ResetCompleteHandler = g_ProtocolBlock.u1.Versions.v1->ResetCompleteHandler;
-        ProtoBlock->RootDeviceName = g_ProtocolBlock.u1.Versions.v1->RootDeviceName;
-        ProtoBlock->SendCompleteHandler = g_ProtocolBlock.u1.Versions.v1->u4.SendCompleteHandler;
-        ProtoBlock->SendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v1->SendNetBufferListsCompleteHandler;
-        ProtoBlock->StatusCompleteHandler = g_ProtocolBlock.u1.Versions.v1->StatusCompleteHandler;
-        ProtoBlock->StatusHandler = g_ProtocolBlock.u1.Versions.v1->u2.StatusHandler;
-        ProtoBlock->TcpOffloadDisconnectCompleteHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadDisconnectCompleteHandler;
-        ProtoBlock->TcpOffloadEventHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadEventHandler;
-        ProtoBlock->TcpOffloadForwardCompleteHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadForwardCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadReceiveCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveIndicateHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadReceiveIndicateHandler;
-        ProtoBlock->TcpOffloadSendCompleteHandler = g_ProtocolBlock.u1.Versions.v1->TcpOffloadSendCompleteHandler;
-        ProtoBlock->TerminateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v1->TerminateOffloadCompleteHandler;
-        ProtoBlock->TransferDataCompleteHandler = g_ProtocolBlock.u1.Versions.v1->u5.TransferDataCompleteHandler;
-        ProtoBlock->UnbindAdapterHandler = g_ProtocolBlock.u1.Versions.v1->UnbindAdapterHandler;
-        ProtoBlock->UnbindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v1->UnbindAdapterHandlerEx;
-        ProtoBlock->UninstallHandler = g_ProtocolBlock.u1.Versions.v1->UninstallHandler;
-        ProtoBlock->UnloadHandler = g_ProtocolBlock.u1.Versions.v1->UnloadHandler;
-        ProtoBlock->UpdateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v1->UpdateOffloadCompleteHandler;
+        ProtoBlock->AllocateSharedMemoryHandler = ProtocolRef->u1.Versions.v1->AllocateSharedMemoryHandler;
+        ProtoBlock->BindAdapterHandler = ProtocolRef->u1.Versions.v1->BindAdapterHandler;
+        ProtoBlock->BindAdapterHandlerEx = ProtocolRef->u1.Versions.v1->BindAdapterHandlerEx;
+        ProtoBlock->BindDeviceName = ProtocolRef->u1.Versions.v1->BindDeviceName;
+        ProtoBlock->CloseAdapterCompleteHandler = ProtocolRef->u1.Versions.v1->CloseAdapterCompleteHandler;
+        ProtoBlock->CloseAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v1->CloseAdapterCompleteHandlerEx;
+        ProtoBlock->CoAfRegisterNotifyHandler = ProtocolRef->u1.Versions.v1->CoAfRegisterNotifyHandler;
+        ProtoBlock->CoReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v1->CoReceiveNetBufferListsHandler;
+        ProtoBlock->CoReceivePacketHandler = ProtocolRef->u1.Versions.v1->CoReceivePacketHandler;
+        ProtoBlock->CoSendCompleteHandler = ProtocolRef->u1.Versions.v1->CoSendCompleteHandler;
+        ProtoBlock->CoSendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v1->CoSendNetBufferListsCompleteHandler;
+        ProtoBlock->CoStatusHandler = ProtocolRef->u1.Versions.v1->u3.CoStatusHandler;
+        ProtoBlock->DirectOidRequestCompleteHandler = ProtocolRef->u1.Versions.v1->DirectOidRequestCompleteHandler;
+        ProtoBlock->FreeSharedMemoryHandler = ProtocolRef->u1.Versions.v1->FreeSharedMemoryHandler;
+        ProtoBlock->IndicateOffloadEventHandler = ProtocolRef->u1.Versions.v1->IndicateOffloadEventHandler;
+        ProtoBlock->InitiateOffloadCompleteHandler = ProtocolRef->u1.Versions.v1->InitiateOffloadCompleteHandler;
+        ProtoBlock->InvalidateOffloadCompleteHandler = ProtocolRef->u1.Versions.v1->InvalidateOffloadCompleteHandler;
+        ProtoBlock->OidRequestCompleteHandler = ProtocolRef->u1.Versions.v1->OidRequestCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandler = ProtocolRef->u1.Versions.v1->OpenAdapterCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v1->OpenAdapterCompleteHandlerEx;
+        ProtoBlock->PnPEventHandler = ProtocolRef->u1.Versions.v1->u1.PnPEventHandler;
+        ProtoBlock->QueryOffloadCompleteHandler = ProtocolRef->u1.Versions.v1->QueryOffloadCompleteHandler;
+        ProtoBlock->ReceiveCompleteHandler = ProtocolRef->u1.Versions.v1->ReceiveCompleteHandler;
+        ProtoBlock->ReceiveHandler = ProtocolRef->u1.Versions.v1->u6.ReceiveHandler;
+        ProtoBlock->ReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v1->ReceiveNetBufferListsHandler;
+        ProtoBlock->ReceivePacketHandler = ProtocolRef->u1.Versions.v1->ReceivePacketHandler;
+        ProtoBlock->RequestCompleteHandler = ProtocolRef->u1.Versions.v1->RequestCompleteHandler;
+        ProtoBlock->ResetCompleteHandler = ProtocolRef->u1.Versions.v1->ResetCompleteHandler;
+        ProtoBlock->RootDeviceName = ProtocolRef->u1.Versions.v1->RootDeviceName;
+        ProtoBlock->SendCompleteHandler = ProtocolRef->u1.Versions.v1->u4.SendCompleteHandler;
+        ProtoBlock->SendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v1->SendNetBufferListsCompleteHandler;
+        ProtoBlock->StatusCompleteHandler = ProtocolRef->u1.Versions.v1->StatusCompleteHandler;
+        ProtoBlock->StatusHandler = ProtocolRef->u1.Versions.v1->u2.StatusHandler;
+        ProtoBlock->TcpOffloadDisconnectCompleteHandler = ProtocolRef->u1.Versions.v1->TcpOffloadDisconnectCompleteHandler;
+        ProtoBlock->TcpOffloadEventHandler = ProtocolRef->u1.Versions.v1->TcpOffloadEventHandler;
+        ProtoBlock->TcpOffloadForwardCompleteHandler = ProtocolRef->u1.Versions.v1->TcpOffloadForwardCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveCompleteHandler = ProtocolRef->u1.Versions.v1->TcpOffloadReceiveCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveIndicateHandler = ProtocolRef->u1.Versions.v1->TcpOffloadReceiveIndicateHandler;
+        ProtoBlock->TcpOffloadSendCompleteHandler = ProtocolRef->u1.Versions.v1->TcpOffloadSendCompleteHandler;
+        ProtoBlock->TerminateOffloadCompleteHandler = ProtocolRef->u1.Versions.v1->TerminateOffloadCompleteHandler;
+        ProtoBlock->TransferDataCompleteHandler = ProtocolRef->u1.Versions.v1->u5.TransferDataCompleteHandler;
+        ProtoBlock->UnbindAdapterHandler = ProtocolRef->u1.Versions.v1->UnbindAdapterHandler;
+        ProtoBlock->UnbindAdapterHandlerEx = ProtocolRef->u1.Versions.v1->UnbindAdapterHandlerEx;
+        ProtoBlock->UninstallHandler = ProtocolRef->u1.Versions.v1->UninstallHandler;
+        ProtoBlock->UnloadHandler = ProtocolRef->u1.Versions.v1->UnloadHandler;
+        ProtoBlock->UpdateOffloadCompleteHandler = ProtocolRef->u1.Versions.v1->UpdateOffloadCompleteHandler;
         break;
 
     case 2:
-        RtlCopyMemory(&ProtoBlock->Name, &g_ProtocolBlock.u1.Versions.v2->Name, sizeof(UNICODE_STRING));
-        RtlCopyMemory(&ProtoBlock->ImageName, &g_ProtocolBlock.u1.Versions.v2->ImageName, sizeof(UNICODE_STRING));
-        ProtoBlock->OpenQueue = g_ProtocolBlock.u1.Versions.v2->OpenQueue;
-        ProtoBlock->NextProtocol = g_ProtocolBlock.u1.Versions.v2->NextProtocol;
+        RtlCopyMemory(&ProtoBlock->Name, &ProtocolRef->u1.Versions.v2->Name, sizeof(UNICODE_STRING));
+        RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v2->ImageName, sizeof(UNICODE_STRING));
+        ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v2->OpenQueue;
+        ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v2->NextProtocol;
 
-        ProtoBlock->MajorDriverVersion = g_ProtocolBlock.u1.Versions.v2->MajorDriverVersion;
-        ProtoBlock->MajorNdisVersion = g_ProtocolBlock.u1.Versions.v2->MajorNdisVersion;
-        ProtoBlock->MinorDriverVersion = g_ProtocolBlock.u1.Versions.v2->MinorDriverVersion;
-        ProtoBlock->MinorNdisVersion = g_ProtocolBlock.u1.Versions.v2->MinorNdisVersion;
+        ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v2->MajorDriverVersion;
+        ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v2->MajorNdisVersion;
+        ProtoBlock->MinorDriverVersion = ProtocolRef->u1.Versions.v2->MinorDriverVersion;
+        ProtoBlock->MinorNdisVersion = ProtocolRef->u1.Versions.v2->MinorNdisVersion;
 
-        ProtoBlock->AllocateSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v2->AllocateSharedMemoryHandler;
-        ProtoBlock->BindAdapterHandler = g_ProtocolBlock.u1.Versions.v2->BindAdapterHandler;
-        ProtoBlock->BindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v2->BindAdapterHandlerEx;
-        ProtoBlock->BindDeviceName = g_ProtocolBlock.u1.Versions.v2->BindDeviceName;
-        ProtoBlock->CloseAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v2->CloseAdapterCompleteHandler;
-        ProtoBlock->CloseAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v2->CloseAdapterCompleteHandlerEx;
-        ProtoBlock->CoAfRegisterNotifyHandler = g_ProtocolBlock.u1.Versions.v2->CoAfRegisterNotifyHandler;
-        ProtoBlock->CoReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v2->CoReceiveNetBufferListsHandler;
-        ProtoBlock->CoReceivePacketHandler = g_ProtocolBlock.u1.Versions.v2->CoReceivePacketHandler;
-        ProtoBlock->CoSendCompleteHandler = g_ProtocolBlock.u1.Versions.v2->CoSendCompleteHandler;
-        ProtoBlock->CoSendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v2->CoSendNetBufferListsCompleteHandler;
-        ProtoBlock->CoStatusHandler = g_ProtocolBlock.u1.Versions.v2->u3.CoStatusHandler;
-        ProtoBlock->DirectOidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v2->DirectOidRequestCompleteHandler;
-        ProtoBlock->FreeSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v2->FreeSharedMemoryHandler;
-        ProtoBlock->IndicateOffloadEventHandler = g_ProtocolBlock.u1.Versions.v2->IndicateOffloadEventHandler;
-        ProtoBlock->InitiateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v2->InitiateOffloadCompleteHandler;
-        ProtoBlock->InvalidateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v2->InvalidateOffloadCompleteHandler;
-        ProtoBlock->OidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v2->OidRequestCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v2->OpenAdapterCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v2->OpenAdapterCompleteHandlerEx;
-        ProtoBlock->PnPEventHandler = g_ProtocolBlock.u1.Versions.v2->u1.PnPEventHandler;
-        ProtoBlock->QueryOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v2->QueryOffloadCompleteHandler;
-        ProtoBlock->ReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v2->ReceiveCompleteHandler;
-        ProtoBlock->ReceiveHandler = g_ProtocolBlock.u1.Versions.v2->u6.ReceiveHandler;
-        ProtoBlock->ReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v2->ReceiveNetBufferListsHandler;
-        ProtoBlock->ReceivePacketHandler = g_ProtocolBlock.u1.Versions.v2->ReceivePacketHandler;
-        ProtoBlock->RequestCompleteHandler = g_ProtocolBlock.u1.Versions.v2->RequestCompleteHandler;
-        ProtoBlock->ResetCompleteHandler = g_ProtocolBlock.u1.Versions.v2->ResetCompleteHandler;
-        ProtoBlock->RootDeviceName = g_ProtocolBlock.u1.Versions.v2->RootDeviceName;
-        ProtoBlock->SendCompleteHandler = g_ProtocolBlock.u1.Versions.v2->u4.SendCompleteHandler;
-        ProtoBlock->SendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v2->SendNetBufferListsCompleteHandler;
-        ProtoBlock->StatusCompleteHandler = g_ProtocolBlock.u1.Versions.v2->StatusCompleteHandler;
-        ProtoBlock->StatusHandler = g_ProtocolBlock.u1.Versions.v2->u2.StatusHandler;
-        ProtoBlock->TcpOffloadDisconnectCompleteHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadDisconnectCompleteHandler;
-        ProtoBlock->TcpOffloadEventHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadEventHandler;
-        ProtoBlock->TcpOffloadForwardCompleteHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadForwardCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadReceiveCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveIndicateHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadReceiveIndicateHandler;
-        ProtoBlock->TcpOffloadSendCompleteHandler = g_ProtocolBlock.u1.Versions.v2->TcpOffloadSendCompleteHandler;
-        ProtoBlock->TerminateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v2->TerminateOffloadCompleteHandler;
-        ProtoBlock->TransferDataCompleteHandler = g_ProtocolBlock.u1.Versions.v2->u5.TransferDataCompleteHandler;
-        ProtoBlock->UnbindAdapterHandler = g_ProtocolBlock.u1.Versions.v2->UnbindAdapterHandler;
-        ProtoBlock->UnbindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v2->UnbindAdapterHandlerEx;
-        ProtoBlock->UninstallHandler = g_ProtocolBlock.u1.Versions.v2->UninstallHandler;
-        ProtoBlock->UnloadHandler = g_ProtocolBlock.u1.Versions.v2->UnloadHandler;
-        ProtoBlock->UpdateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v2->UpdateOffloadCompleteHandler;
+        ProtoBlock->AllocateSharedMemoryHandler = ProtocolRef->u1.Versions.v2->AllocateSharedMemoryHandler;
+        ProtoBlock->BindAdapterHandler = ProtocolRef->u1.Versions.v2->BindAdapterHandler;
+        ProtoBlock->BindAdapterHandlerEx = ProtocolRef->u1.Versions.v2->BindAdapterHandlerEx;
+        ProtoBlock->BindDeviceName = ProtocolRef->u1.Versions.v2->BindDeviceName;
+        ProtoBlock->CloseAdapterCompleteHandler = ProtocolRef->u1.Versions.v2->CloseAdapterCompleteHandler;
+        ProtoBlock->CloseAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v2->CloseAdapterCompleteHandlerEx;
+        ProtoBlock->CoAfRegisterNotifyHandler = ProtocolRef->u1.Versions.v2->CoAfRegisterNotifyHandler;
+        ProtoBlock->CoReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v2->CoReceiveNetBufferListsHandler;
+        ProtoBlock->CoReceivePacketHandler = ProtocolRef->u1.Versions.v2->CoReceivePacketHandler;
+        ProtoBlock->CoSendCompleteHandler = ProtocolRef->u1.Versions.v2->CoSendCompleteHandler;
+        ProtoBlock->CoSendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v2->CoSendNetBufferListsCompleteHandler;
+        ProtoBlock->CoStatusHandler = ProtocolRef->u1.Versions.v2->u3.CoStatusHandler;
+        ProtoBlock->DirectOidRequestCompleteHandler = ProtocolRef->u1.Versions.v2->DirectOidRequestCompleteHandler;
+        ProtoBlock->FreeSharedMemoryHandler = ProtocolRef->u1.Versions.v2->FreeSharedMemoryHandler;
+        ProtoBlock->IndicateOffloadEventHandler = ProtocolRef->u1.Versions.v2->IndicateOffloadEventHandler;
+        ProtoBlock->InitiateOffloadCompleteHandler = ProtocolRef->u1.Versions.v2->InitiateOffloadCompleteHandler;
+        ProtoBlock->InvalidateOffloadCompleteHandler = ProtocolRef->u1.Versions.v2->InvalidateOffloadCompleteHandler;
+        ProtoBlock->OidRequestCompleteHandler = ProtocolRef->u1.Versions.v2->OidRequestCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandler = ProtocolRef->u1.Versions.v2->OpenAdapterCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v2->OpenAdapterCompleteHandlerEx;
+        ProtoBlock->PnPEventHandler = ProtocolRef->u1.Versions.v2->u1.PnPEventHandler;
+        ProtoBlock->QueryOffloadCompleteHandler = ProtocolRef->u1.Versions.v2->QueryOffloadCompleteHandler;
+        ProtoBlock->ReceiveCompleteHandler = ProtocolRef->u1.Versions.v2->ReceiveCompleteHandler;
+        ProtoBlock->ReceiveHandler = ProtocolRef->u1.Versions.v2->u6.ReceiveHandler;
+        ProtoBlock->ReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v2->ReceiveNetBufferListsHandler;
+        ProtoBlock->ReceivePacketHandler = ProtocolRef->u1.Versions.v2->ReceivePacketHandler;
+        ProtoBlock->RequestCompleteHandler = ProtocolRef->u1.Versions.v2->RequestCompleteHandler;
+        ProtoBlock->ResetCompleteHandler = ProtocolRef->u1.Versions.v2->ResetCompleteHandler;
+        ProtoBlock->RootDeviceName = ProtocolRef->u1.Versions.v2->RootDeviceName;
+        ProtoBlock->SendCompleteHandler = ProtocolRef->u1.Versions.v2->u4.SendCompleteHandler;
+        ProtoBlock->SendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v2->SendNetBufferListsCompleteHandler;
+        ProtoBlock->StatusCompleteHandler = ProtocolRef->u1.Versions.v2->StatusCompleteHandler;
+        ProtoBlock->StatusHandler = ProtocolRef->u1.Versions.v2->u2.StatusHandler;
+        ProtoBlock->TcpOffloadDisconnectCompleteHandler = ProtocolRef->u1.Versions.v2->TcpOffloadDisconnectCompleteHandler;
+        ProtoBlock->TcpOffloadEventHandler = ProtocolRef->u1.Versions.v2->TcpOffloadEventHandler;
+        ProtoBlock->TcpOffloadForwardCompleteHandler = ProtocolRef->u1.Versions.v2->TcpOffloadForwardCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveCompleteHandler = ProtocolRef->u1.Versions.v2->TcpOffloadReceiveCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveIndicateHandler = ProtocolRef->u1.Versions.v2->TcpOffloadReceiveIndicateHandler;
+        ProtoBlock->TcpOffloadSendCompleteHandler = ProtocolRef->u1.Versions.v2->TcpOffloadSendCompleteHandler;
+        ProtoBlock->TerminateOffloadCompleteHandler = ProtocolRef->u1.Versions.v2->TerminateOffloadCompleteHandler;
+        ProtoBlock->TransferDataCompleteHandler = ProtocolRef->u1.Versions.v2->u5.TransferDataCompleteHandler;
+        ProtoBlock->UnbindAdapterHandler = ProtocolRef->u1.Versions.v2->UnbindAdapterHandler;
+        ProtoBlock->UnbindAdapterHandlerEx = ProtocolRef->u1.Versions.v2->UnbindAdapterHandlerEx;
+        ProtoBlock->UninstallHandler = ProtocolRef->u1.Versions.v2->UninstallHandler;
+        ProtoBlock->UnloadHandler = ProtocolRef->u1.Versions.v2->UnloadHandler;
+        ProtoBlock->UpdateOffloadCompleteHandler = ProtocolRef->u1.Versions.v2->UpdateOffloadCompleteHandler;
         break;
 
     case 3:
-        RtlCopyMemory(&ProtoBlock->Name, &g_ProtocolBlock.u1.Versions.v3->Name, sizeof(UNICODE_STRING));
-        RtlCopyMemory(&ProtoBlock->ImageName, &g_ProtocolBlock.u1.Versions.v3->ImageName, sizeof(UNICODE_STRING));
-        ProtoBlock->OpenQueue = g_ProtocolBlock.u1.Versions.v3->OpenQueue;
-        ProtoBlock->NextProtocol = g_ProtocolBlock.u1.Versions.v3->NextProtocol;
+        RtlCopyMemory(&ProtoBlock->Name, &ProtocolRef->u1.Versions.v3->Name, sizeof(UNICODE_STRING));
+        RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v3->ImageName, sizeof(UNICODE_STRING));
+        ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v3->OpenQueue;
+        ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v3->NextProtocol;
 
-        ProtoBlock->MajorDriverVersion = g_ProtocolBlock.u1.Versions.v3->MajorDriverVersion;
-        ProtoBlock->MajorNdisVersion = g_ProtocolBlock.u1.Versions.v3->MajorNdisVersion;
-        ProtoBlock->MinorDriverVersion = g_ProtocolBlock.u1.Versions.v3->MinorDriverVersion;
-        ProtoBlock->MinorNdisVersion = g_ProtocolBlock.u1.Versions.v3->MinorNdisVersion;
+        ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v3->MajorDriverVersion;
+        ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v3->MajorNdisVersion;
+        ProtoBlock->MinorDriverVersion = ProtocolRef->u1.Versions.v3->MinorDriverVersion;
+        ProtoBlock->MinorNdisVersion = ProtocolRef->u1.Versions.v3->MinorNdisVersion;
 
-        ProtoBlock->AllocateSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v3->AllocateSharedMemoryHandler;
-        ProtoBlock->BindAdapterHandler = g_ProtocolBlock.u1.Versions.v3->BindAdapterHandler;
-        ProtoBlock->BindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v3->BindAdapterHandlerEx;
-        ProtoBlock->BindDeviceName = g_ProtocolBlock.u1.Versions.v3->BindDeviceName;
-        ProtoBlock->CloseAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v3->CloseAdapterCompleteHandler;
-        ProtoBlock->CloseAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v3->CloseAdapterCompleteHandlerEx;
-        ProtoBlock->CoAfRegisterNotifyHandler = g_ProtocolBlock.u1.Versions.v3->CoAfRegisterNotifyHandler;
-        ProtoBlock->CoReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v3->CoReceiveNetBufferListsHandler;
-        ProtoBlock->CoReceivePacketHandler = g_ProtocolBlock.u1.Versions.v3->CoReceivePacketHandler;
-        ProtoBlock->CoSendCompleteHandler = g_ProtocolBlock.u1.Versions.v3->CoSendCompleteHandler;
-        ProtoBlock->CoSendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v3->CoSendNetBufferListsCompleteHandler;
-        ProtoBlock->CoStatusHandler = g_ProtocolBlock.u1.Versions.v3->u3.CoStatusHandler;
-        ProtoBlock->DirectOidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v3->DirectOidRequestCompleteHandler;
-        ProtoBlock->FreeSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v3->FreeSharedMemoryHandler;
-        ProtoBlock->IndicateOffloadEventHandler = g_ProtocolBlock.u1.Versions.v3->IndicateOffloadEventHandler;
-        ProtoBlock->InitiateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v3->InitiateOffloadCompleteHandler;
-        ProtoBlock->InvalidateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v3->InvalidateOffloadCompleteHandler;
-        ProtoBlock->OidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v3->OidRequestCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v3->OpenAdapterCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v3->OpenAdapterCompleteHandlerEx;
-        ProtoBlock->PnPEventHandler = g_ProtocolBlock.u1.Versions.v3->u1.PnPEventHandler;
-        ProtoBlock->QueryOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v3->QueryOffloadCompleteHandler;
-        ProtoBlock->ReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v3->ReceiveCompleteHandler;
-        ProtoBlock->ReceiveHandler = g_ProtocolBlock.u1.Versions.v3->u6.ReceiveHandler;
-        ProtoBlock->ReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v3->ReceiveNetBufferListsHandler;
-        ProtoBlock->ReceivePacketHandler = g_ProtocolBlock.u1.Versions.v3->ReceivePacketHandler;
-        ProtoBlock->RequestCompleteHandler = g_ProtocolBlock.u1.Versions.v3->RequestCompleteHandler;
-        ProtoBlock->ResetCompleteHandler = g_ProtocolBlock.u1.Versions.v3->ResetCompleteHandler;
-        ProtoBlock->RootDeviceName = g_ProtocolBlock.u1.Versions.v3->RootDeviceName;
-        ProtoBlock->SendCompleteHandler = g_ProtocolBlock.u1.Versions.v3->u4.SendCompleteHandler;
-        ProtoBlock->SendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v3->SendNetBufferListsCompleteHandler;
-        ProtoBlock->StatusCompleteHandler = g_ProtocolBlock.u1.Versions.v3->StatusCompleteHandler;
-        ProtoBlock->StatusHandler = g_ProtocolBlock.u1.Versions.v3->u2.StatusHandler;
-        ProtoBlock->TcpOffloadDisconnectCompleteHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadDisconnectCompleteHandler;
-        ProtoBlock->TcpOffloadEventHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadEventHandler;
-        ProtoBlock->TcpOffloadForwardCompleteHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadForwardCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadReceiveCompleteHandler;
-        ProtoBlock->TcpOffloadReceiveIndicateHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadReceiveIndicateHandler;
-        ProtoBlock->TcpOffloadSendCompleteHandler = g_ProtocolBlock.u1.Versions.v3->TcpOffloadSendCompleteHandler;
-        ProtoBlock->TerminateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v3->TerminateOffloadCompleteHandler;
-        ProtoBlock->TransferDataCompleteHandler = g_ProtocolBlock.u1.Versions.v3->u5.TransferDataCompleteHandler;
-        ProtoBlock->UnbindAdapterHandler = g_ProtocolBlock.u1.Versions.v3->UnbindAdapterHandler;
-        ProtoBlock->UnbindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v3->UnbindAdapterHandlerEx;
-        ProtoBlock->UninstallHandler = g_ProtocolBlock.u1.Versions.v3->UninstallHandler;
-        ProtoBlock->UnloadHandler = g_ProtocolBlock.u1.Versions.v3->UnloadHandler;
-        ProtoBlock->UpdateOffloadCompleteHandler = g_ProtocolBlock.u1.Versions.v3->UpdateOffloadCompleteHandler;
+        ProtoBlock->AllocateSharedMemoryHandler = ProtocolRef->u1.Versions.v3->AllocateSharedMemoryHandler;
+        ProtoBlock->BindAdapterHandler = ProtocolRef->u1.Versions.v3->BindAdapterHandler;
+        ProtoBlock->BindAdapterHandlerEx = ProtocolRef->u1.Versions.v3->BindAdapterHandlerEx;
+        ProtoBlock->BindDeviceName = ProtocolRef->u1.Versions.v3->BindDeviceName;
+        ProtoBlock->CloseAdapterCompleteHandler = ProtocolRef->u1.Versions.v3->CloseAdapterCompleteHandler;
+        ProtoBlock->CloseAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v3->CloseAdapterCompleteHandlerEx;
+        ProtoBlock->CoAfRegisterNotifyHandler = ProtocolRef->u1.Versions.v3->CoAfRegisterNotifyHandler;
+        ProtoBlock->CoReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v3->CoReceiveNetBufferListsHandler;
+        ProtoBlock->CoReceivePacketHandler = ProtocolRef->u1.Versions.v3->CoReceivePacketHandler;
+        ProtoBlock->CoSendCompleteHandler = ProtocolRef->u1.Versions.v3->CoSendCompleteHandler;
+        ProtoBlock->CoSendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v3->CoSendNetBufferListsCompleteHandler;
+        ProtoBlock->CoStatusHandler = ProtocolRef->u1.Versions.v3->u3.CoStatusHandler;
+        ProtoBlock->DirectOidRequestCompleteHandler = ProtocolRef->u1.Versions.v3->DirectOidRequestCompleteHandler;
+        ProtoBlock->FreeSharedMemoryHandler = ProtocolRef->u1.Versions.v3->FreeSharedMemoryHandler;
+        ProtoBlock->IndicateOffloadEventHandler = ProtocolRef->u1.Versions.v3->IndicateOffloadEventHandler;
+        ProtoBlock->InitiateOffloadCompleteHandler = ProtocolRef->u1.Versions.v3->InitiateOffloadCompleteHandler;
+        ProtoBlock->InvalidateOffloadCompleteHandler = ProtocolRef->u1.Versions.v3->InvalidateOffloadCompleteHandler;
+        ProtoBlock->OidRequestCompleteHandler = ProtocolRef->u1.Versions.v3->OidRequestCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandler = ProtocolRef->u1.Versions.v3->OpenAdapterCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v3->OpenAdapterCompleteHandlerEx;
+        ProtoBlock->PnPEventHandler = ProtocolRef->u1.Versions.v3->u1.PnPEventHandler;
+        ProtoBlock->QueryOffloadCompleteHandler = ProtocolRef->u1.Versions.v3->QueryOffloadCompleteHandler;
+        ProtoBlock->ReceiveCompleteHandler = ProtocolRef->u1.Versions.v3->ReceiveCompleteHandler;
+        ProtoBlock->ReceiveHandler = ProtocolRef->u1.Versions.v3->u6.ReceiveHandler;
+        ProtoBlock->ReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v3->ReceiveNetBufferListsHandler;
+        ProtoBlock->ReceivePacketHandler = ProtocolRef->u1.Versions.v3->ReceivePacketHandler;
+        ProtoBlock->RequestCompleteHandler = ProtocolRef->u1.Versions.v3->RequestCompleteHandler;
+        ProtoBlock->ResetCompleteHandler = ProtocolRef->u1.Versions.v3->ResetCompleteHandler;
+        ProtoBlock->RootDeviceName = ProtocolRef->u1.Versions.v3->RootDeviceName;
+        ProtoBlock->SendCompleteHandler = ProtocolRef->u1.Versions.v3->u4.SendCompleteHandler;
+        ProtoBlock->SendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v3->SendNetBufferListsCompleteHandler;
+        ProtoBlock->StatusCompleteHandler = ProtocolRef->u1.Versions.v3->StatusCompleteHandler;
+        ProtoBlock->StatusHandler = ProtocolRef->u1.Versions.v3->u2.StatusHandler;
+        ProtoBlock->TcpOffloadDisconnectCompleteHandler = ProtocolRef->u1.Versions.v3->TcpOffloadDisconnectCompleteHandler;
+        ProtoBlock->TcpOffloadEventHandler = ProtocolRef->u1.Versions.v3->TcpOffloadEventHandler;
+        ProtoBlock->TcpOffloadForwardCompleteHandler = ProtocolRef->u1.Versions.v3->TcpOffloadForwardCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveCompleteHandler = ProtocolRef->u1.Versions.v3->TcpOffloadReceiveCompleteHandler;
+        ProtoBlock->TcpOffloadReceiveIndicateHandler = ProtocolRef->u1.Versions.v3->TcpOffloadReceiveIndicateHandler;
+        ProtoBlock->TcpOffloadSendCompleteHandler = ProtocolRef->u1.Versions.v3->TcpOffloadSendCompleteHandler;
+        ProtoBlock->TerminateOffloadCompleteHandler = ProtocolRef->u1.Versions.v3->TerminateOffloadCompleteHandler;
+        ProtoBlock->TransferDataCompleteHandler = ProtocolRef->u1.Versions.v3->u5.TransferDataCompleteHandler;
+        ProtoBlock->UnbindAdapterHandler = ProtocolRef->u1.Versions.v3->UnbindAdapterHandler;
+        ProtoBlock->UnbindAdapterHandlerEx = ProtocolRef->u1.Versions.v3->UnbindAdapterHandlerEx;
+        ProtoBlock->UninstallHandler = ProtocolRef->u1.Versions.v3->UninstallHandler;
+        ProtoBlock->UnloadHandler = ProtocolRef->u1.Versions.v3->UnloadHandler;
+        ProtoBlock->UpdateOffloadCompleteHandler = ProtocolRef->u1.Versions.v3->UpdateOffloadCompleteHandler;
         break;
 
     case 4:
-        RtlCopyMemory(&ProtoBlock->Name, &g_ProtocolBlock.u1.Versions.v4->Name, sizeof(UNICODE_STRING));
-        RtlCopyMemory(&ProtoBlock->ImageName, &g_ProtocolBlock.u1.Versions.v4->ImageName, sizeof(UNICODE_STRING));
-        ProtoBlock->OpenQueue = g_ProtocolBlock.u1.Versions.v4->OpenQueue;
-        ProtoBlock->NextProtocol = g_ProtocolBlock.u1.Versions.v4->NextProtocol;
+        RtlCopyMemory(&ProtoBlock->Name, &ProtocolRef->u1.Versions.v4->Name, sizeof(UNICODE_STRING));
+        RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v4->ImageName, sizeof(UNICODE_STRING));
+        ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v4->OpenQueue;
+        ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v4->NextProtocol;
 
-        ProtoBlock->MajorDriverVersion = g_ProtocolBlock.u1.Versions.v4->MajorDriverVersion;
-        ProtoBlock->MajorNdisVersion = g_ProtocolBlock.u1.Versions.v4->MajorNdisVersion;
-        ProtoBlock->MinorDriverVersion = g_ProtocolBlock.u1.Versions.v4->MinorDriverVersion;
-        ProtoBlock->MinorNdisVersion = g_ProtocolBlock.u1.Versions.v4->MinorNdisVersion;
+        ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v4->MajorDriverVersion;
+        ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v4->MajorNdisVersion;
+        ProtoBlock->MinorDriverVersion = ProtocolRef->u1.Versions.v4->MinorDriverVersion;
+        ProtoBlock->MinorNdisVersion = ProtocolRef->u1.Versions.v4->MinorNdisVersion;
 
-        ProtoBlock->AllocateSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v4->AllocateSharedMemoryHandler;
-        ProtoBlock->BindAdapterHandler = g_ProtocolBlock.u1.Versions.v4->BindAdapterHandler;
-        ProtoBlock->BindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v4->BindAdapterHandlerEx;
-        ProtoBlock->BindDeviceName = g_ProtocolBlock.u1.Versions.v4->BindDeviceName;
-        ProtoBlock->CloseAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v4->CloseAdapterCompleteHandler;
-        ProtoBlock->CloseAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v4->CloseAdapterCompleteHandlerEx;
-        ProtoBlock->CoAfRegisterNotifyHandler = g_ProtocolBlock.u1.Versions.v4->CoAfRegisterNotifyHandler;
-        ProtoBlock->CoReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v4->CoReceiveNetBufferListsHandler;
-        ProtoBlock->CoReceivePacketHandler = g_ProtocolBlock.u1.Versions.v4->CoReceivePacketHandler;
-        ProtoBlock->CoSendCompleteHandler = g_ProtocolBlock.u1.Versions.v4->CoSendCompleteHandler;
-        ProtoBlock->CoSendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v4->CoSendNetBufferListsCompleteHandler;
-        ProtoBlock->CoStatusHandler = g_ProtocolBlock.u1.Versions.v4->u3.CoStatusHandler;
-        ProtoBlock->DirectOidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v4->DirectOidRequestCompleteHandler;
-        ProtoBlock->FreeSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v4->FreeSharedMemoryHandler;
-        ProtoBlock->OidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v4->OidRequestCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v4->OpenAdapterCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v4->OpenAdapterCompleteHandlerEx;
-        ProtoBlock->PnPEventHandler = g_ProtocolBlock.u1.Versions.v4->u1.PnPEventHandler;
-        ProtoBlock->ReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v4->ReceiveCompleteHandler;
-        ProtoBlock->ReceiveHandler = g_ProtocolBlock.u1.Versions.v4->u6.ReceiveHandler;
-        ProtoBlock->ReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v4->ReceiveNetBufferListsHandler;
-        ProtoBlock->ReceivePacketHandler = g_ProtocolBlock.u1.Versions.v4->ReceivePacketHandler;
-        ProtoBlock->RequestCompleteHandler = g_ProtocolBlock.u1.Versions.v4->RequestCompleteHandler;
-        ProtoBlock->ResetCompleteHandler = g_ProtocolBlock.u1.Versions.v4->ResetCompleteHandler;
-        ProtoBlock->RootDeviceName = g_ProtocolBlock.u1.Versions.v4->RootDeviceName;
-        ProtoBlock->SendCompleteHandler = g_ProtocolBlock.u1.Versions.v4->u4.SendCompleteHandler;
-        ProtoBlock->SendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v4->SendNetBufferListsCompleteHandler;
-        ProtoBlock->StatusCompleteHandler = g_ProtocolBlock.u1.Versions.v4->StatusCompleteHandler;
-        ProtoBlock->StatusHandler = g_ProtocolBlock.u1.Versions.v4->u2.StatusHandler;
-        ProtoBlock->TransferDataCompleteHandler = g_ProtocolBlock.u1.Versions.v4->u5.TransferDataCompleteHandler;
-        ProtoBlock->UnbindAdapterHandler = g_ProtocolBlock.u1.Versions.v4->UnbindAdapterHandler;
-        ProtoBlock->UnbindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v4->UnbindAdapterHandlerEx;
-        ProtoBlock->UninstallHandler = g_ProtocolBlock.u1.Versions.v4->UninstallHandler;
-        ProtoBlock->UnloadHandler = g_ProtocolBlock.u1.Versions.v4->UnloadHandler;
+        ProtoBlock->AllocateSharedMemoryHandler = ProtocolRef->u1.Versions.v4->AllocateSharedMemoryHandler;
+        ProtoBlock->BindAdapterHandler = ProtocolRef->u1.Versions.v4->BindAdapterHandler;
+        ProtoBlock->BindAdapterHandlerEx = ProtocolRef->u1.Versions.v4->BindAdapterHandlerEx;
+        ProtoBlock->BindDeviceName = ProtocolRef->u1.Versions.v4->BindDeviceName;
+        ProtoBlock->CloseAdapterCompleteHandler = ProtocolRef->u1.Versions.v4->CloseAdapterCompleteHandler;
+        ProtoBlock->CloseAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v4->CloseAdapterCompleteHandlerEx;
+        ProtoBlock->CoAfRegisterNotifyHandler = ProtocolRef->u1.Versions.v4->CoAfRegisterNotifyHandler;
+        ProtoBlock->CoReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v4->CoReceiveNetBufferListsHandler;
+        ProtoBlock->CoReceivePacketHandler = ProtocolRef->u1.Versions.v4->CoReceivePacketHandler;
+        ProtoBlock->CoSendCompleteHandler = ProtocolRef->u1.Versions.v4->CoSendCompleteHandler;
+        ProtoBlock->CoSendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v4->CoSendNetBufferListsCompleteHandler;
+        ProtoBlock->CoStatusHandler = ProtocolRef->u1.Versions.v4->u3.CoStatusHandler;
+        ProtoBlock->DirectOidRequestCompleteHandler = ProtocolRef->u1.Versions.v4->DirectOidRequestCompleteHandler;
+        ProtoBlock->FreeSharedMemoryHandler = ProtocolRef->u1.Versions.v4->FreeSharedMemoryHandler;
+        ProtoBlock->OidRequestCompleteHandler = ProtocolRef->u1.Versions.v4->OidRequestCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandler = ProtocolRef->u1.Versions.v4->OpenAdapterCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v4->OpenAdapterCompleteHandlerEx;
+        ProtoBlock->PnPEventHandler = ProtocolRef->u1.Versions.v4->u1.PnPEventHandler;
+        ProtoBlock->ReceiveCompleteHandler = ProtocolRef->u1.Versions.v4->ReceiveCompleteHandler;
+        ProtoBlock->ReceiveHandler = ProtocolRef->u1.Versions.v4->u6.ReceiveHandler;
+        ProtoBlock->ReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v4->ReceiveNetBufferListsHandler;
+        ProtoBlock->ReceivePacketHandler = ProtocolRef->u1.Versions.v4->ReceivePacketHandler;
+        ProtoBlock->RequestCompleteHandler = ProtocolRef->u1.Versions.v4->RequestCompleteHandler;
+        ProtoBlock->ResetCompleteHandler = ProtocolRef->u1.Versions.v4->ResetCompleteHandler;
+        ProtoBlock->RootDeviceName = ProtocolRef->u1.Versions.v4->RootDeviceName;
+        ProtoBlock->SendCompleteHandler = ProtocolRef->u1.Versions.v4->u4.SendCompleteHandler;
+        ProtoBlock->SendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v4->SendNetBufferListsCompleteHandler;
+        ProtoBlock->StatusCompleteHandler = ProtocolRef->u1.Versions.v4->StatusCompleteHandler;
+        ProtoBlock->StatusHandler = ProtocolRef->u1.Versions.v4->u2.StatusHandler;
+        ProtoBlock->TransferDataCompleteHandler = ProtocolRef->u1.Versions.v4->u5.TransferDataCompleteHandler;
+        ProtoBlock->UnbindAdapterHandler = ProtocolRef->u1.Versions.v4->UnbindAdapterHandler;
+        ProtoBlock->UnbindAdapterHandlerEx = ProtocolRef->u1.Versions.v4->UnbindAdapterHandlerEx;
+        ProtoBlock->UninstallHandler = ProtocolRef->u1.Versions.v4->UninstallHandler;
+        ProtoBlock->UnloadHandler = ProtocolRef->u1.Versions.v4->UnloadHandler;
         break;
 
     case 5:
-        RtlCopyMemory(&ProtoBlock->Name, &g_ProtocolBlock.u1.Versions.v5->Name, sizeof(UNICODE_STRING));
-        RtlCopyMemory(&ProtoBlock->ImageName, &g_ProtocolBlock.u1.Versions.v5->ImageName, sizeof(UNICODE_STRING));
-        ProtoBlock->OpenQueue = g_ProtocolBlock.u1.Versions.v5->OpenQueue;
-        ProtoBlock->NextProtocol = g_ProtocolBlock.u1.Versions.v5->NextProtocol;
+        RtlCopyMemory(&ProtoBlock->Name, &ProtocolRef->u1.Versions.v5->Name, sizeof(UNICODE_STRING));
+        RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v5->ImageName, sizeof(UNICODE_STRING));
+        ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v5->OpenQueue;
+        ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v5->NextProtocol;
 
-        ProtoBlock->MajorDriverVersion = g_ProtocolBlock.u1.Versions.v5->MajorDriverVersion;
-        ProtoBlock->MajorNdisVersion = g_ProtocolBlock.u1.Versions.v5->MajorNdisVersion;
-        ProtoBlock->MinorDriverVersion = g_ProtocolBlock.u1.Versions.v5->MinorDriverVersion;
-        ProtoBlock->MinorNdisVersion = g_ProtocolBlock.u1.Versions.v5->MinorNdisVersion;
+        ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v5->MajorDriverVersion;
+        ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v5->MajorNdisVersion;
+        ProtoBlock->MinorDriverVersion = ProtocolRef->u1.Versions.v5->MinorDriverVersion;
+        ProtoBlock->MinorNdisVersion = ProtocolRef->u1.Versions.v5->MinorNdisVersion;
 
-        ProtoBlock->AllocateSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v5->AllocateSharedMemoryHandler;
-        ProtoBlock->BindAdapterHandler = g_ProtocolBlock.u1.Versions.v5->BindAdapterHandler;
-        ProtoBlock->BindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v5->BindAdapterHandlerEx;
-        ProtoBlock->BindDeviceName = g_ProtocolBlock.u1.Versions.v5->BindDeviceName;
-        ProtoBlock->CloseAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v5->CloseAdapterCompleteHandler;
-        ProtoBlock->CloseAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v5->CloseAdapterCompleteHandlerEx;
-        ProtoBlock->CoAfRegisterNotifyHandler = g_ProtocolBlock.u1.Versions.v5->CoAfRegisterNotifyHandler;
-        ProtoBlock->CoReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v5->CoReceiveNetBufferListsHandler;
-        ProtoBlock->CoReceivePacketHandler = g_ProtocolBlock.u1.Versions.v5->CoReceivePacketHandler;
-        ProtoBlock->CoSendCompleteHandler = g_ProtocolBlock.u1.Versions.v5->CoSendCompleteHandler;
-        ProtoBlock->CoSendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v5->CoSendNetBufferListsCompleteHandler;
-        ProtoBlock->CoStatusHandler = g_ProtocolBlock.u1.Versions.v5->u3.CoStatusHandler;
-        ProtoBlock->DirectOidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v5->DirectOidRequestCompleteHandler;
-        ProtoBlock->FreeSharedMemoryHandler = g_ProtocolBlock.u1.Versions.v5->FreeSharedMemoryHandler;
-        ProtoBlock->OidRequestCompleteHandler = g_ProtocolBlock.u1.Versions.v5->OidRequestCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandler = g_ProtocolBlock.u1.Versions.v5->OpenAdapterCompleteHandler;
-        ProtoBlock->OpenAdapterCompleteHandlerEx = g_ProtocolBlock.u1.Versions.v5->OpenAdapterCompleteHandlerEx;
-        ProtoBlock->PnPEventHandler = g_ProtocolBlock.u1.Versions.v5->u1.PnPEventHandler;
-        ProtoBlock->ReceiveCompleteHandler = g_ProtocolBlock.u1.Versions.v5->ReceiveCompleteHandler;
-        ProtoBlock->ReceiveHandler = g_ProtocolBlock.u1.Versions.v5->u6.ReceiveHandler;
-        ProtoBlock->ReceiveNetBufferListsHandler = g_ProtocolBlock.u1.Versions.v5->ReceiveNetBufferListsHandler;
-        ProtoBlock->ReceivePacketHandler = g_ProtocolBlock.u1.Versions.v5->ReceivePacketHandler;
-        ProtoBlock->RequestCompleteHandler = g_ProtocolBlock.u1.Versions.v5->RequestCompleteHandler;
-        ProtoBlock->ResetCompleteHandler = g_ProtocolBlock.u1.Versions.v5->ResetCompleteHandler;
-        ProtoBlock->RootDeviceName = g_ProtocolBlock.u1.Versions.v5->RootDeviceName;
-        ProtoBlock->SendCompleteHandler = g_ProtocolBlock.u1.Versions.v5->u4.SendCompleteHandler;
-        ProtoBlock->SendNetBufferListsCompleteHandler = g_ProtocolBlock.u1.Versions.v5->SendNetBufferListsCompleteHandler;
-        ProtoBlock->StatusCompleteHandler = g_ProtocolBlock.u1.Versions.v5->StatusCompleteHandler;
-        ProtoBlock->StatusHandler = g_ProtocolBlock.u1.Versions.v5->u2.StatusHandler;
-        ProtoBlock->TransferDataCompleteHandler = g_ProtocolBlock.u1.Versions.v5->u5.TransferDataCompleteHandler;
-        ProtoBlock->UnbindAdapterHandler = g_ProtocolBlock.u1.Versions.v5->UnbindAdapterHandler;
-        ProtoBlock->UnbindAdapterHandlerEx = g_ProtocolBlock.u1.Versions.v5->UnbindAdapterHandlerEx;
-        ProtoBlock->UninstallHandler = g_ProtocolBlock.u1.Versions.v5->UninstallHandler;
-        ProtoBlock->UnloadHandler = g_ProtocolBlock.u1.Versions.v5->UnloadHandler;
+        ProtoBlock->AllocateSharedMemoryHandler = ProtocolRef->u1.Versions.v5->AllocateSharedMemoryHandler;
+        ProtoBlock->BindAdapterHandler = ProtocolRef->u1.Versions.v5->BindAdapterHandler;
+        ProtoBlock->BindAdapterHandlerEx = ProtocolRef->u1.Versions.v5->BindAdapterHandlerEx;
+        ProtoBlock->BindDeviceName = ProtocolRef->u1.Versions.v5->BindDeviceName;
+        ProtoBlock->CloseAdapterCompleteHandler = ProtocolRef->u1.Versions.v5->CloseAdapterCompleteHandler;
+        ProtoBlock->CloseAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v5->CloseAdapterCompleteHandlerEx;
+        ProtoBlock->CoAfRegisterNotifyHandler = ProtocolRef->u1.Versions.v5->CoAfRegisterNotifyHandler;
+        ProtoBlock->CoReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v5->CoReceiveNetBufferListsHandler;
+        ProtoBlock->CoReceivePacketHandler = ProtocolRef->u1.Versions.v5->CoReceivePacketHandler;
+        ProtoBlock->CoSendCompleteHandler = ProtocolRef->u1.Versions.v5->CoSendCompleteHandler;
+        ProtoBlock->CoSendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v5->CoSendNetBufferListsCompleteHandler;
+        ProtoBlock->CoStatusHandler = ProtocolRef->u1.Versions.v5->u3.CoStatusHandler;
+        ProtoBlock->DirectOidRequestCompleteHandler = ProtocolRef->u1.Versions.v5->DirectOidRequestCompleteHandler;
+        ProtoBlock->FreeSharedMemoryHandler = ProtocolRef->u1.Versions.v5->FreeSharedMemoryHandler;
+        ProtoBlock->OidRequestCompleteHandler = ProtocolRef->u1.Versions.v5->OidRequestCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandler = ProtocolRef->u1.Versions.v5->OpenAdapterCompleteHandler;
+        ProtoBlock->OpenAdapterCompleteHandlerEx = ProtocolRef->u1.Versions.v5->OpenAdapterCompleteHandlerEx;
+        ProtoBlock->PnPEventHandler = ProtocolRef->u1.Versions.v5->u1.PnPEventHandler;
+        ProtoBlock->ReceiveCompleteHandler = ProtocolRef->u1.Versions.v5->ReceiveCompleteHandler;
+        ProtoBlock->ReceiveHandler = ProtocolRef->u1.Versions.v5->u6.ReceiveHandler;
+        ProtoBlock->ReceiveNetBufferListsHandler = ProtocolRef->u1.Versions.v5->ReceiveNetBufferListsHandler;
+        ProtoBlock->ReceivePacketHandler = ProtocolRef->u1.Versions.v5->ReceivePacketHandler;
+        ProtoBlock->RequestCompleteHandler = ProtocolRef->u1.Versions.v5->RequestCompleteHandler;
+        ProtoBlock->ResetCompleteHandler = ProtocolRef->u1.Versions.v5->ResetCompleteHandler;
+        ProtoBlock->RootDeviceName = ProtocolRef->u1.Versions.v5->RootDeviceName;
+        ProtoBlock->SendCompleteHandler = ProtocolRef->u1.Versions.v5->u4.SendCompleteHandler;
+        ProtoBlock->SendNetBufferListsCompleteHandler = ProtocolRef->u1.Versions.v5->SendNetBufferListsCompleteHandler;
+        ProtoBlock->StatusCompleteHandler = ProtocolRef->u1.Versions.v5->StatusCompleteHandler;
+        ProtoBlock->StatusHandler = ProtocolRef->u1.Versions.v5->u2.StatusHandler;
+        ProtoBlock->TransferDataCompleteHandler = ProtocolRef->u1.Versions.v5->u5.TransferDataCompleteHandler;
+        ProtoBlock->UnbindAdapterHandler = ProtocolRef->u1.Versions.v5->UnbindAdapterHandler;
+        ProtoBlock->UnbindAdapterHandlerEx = ProtocolRef->u1.Versions.v5->UnbindAdapterHandlerEx;
+        ProtoBlock->UninstallHandler = ProtocolRef->u1.Versions.v5->UninstallHandler;
+        ProtoBlock->UnloadHandler = ProtocolRef->u1.Versions.v5->UnloadHandler;
         break;
 
     default:
@@ -809,273 +767,326 @@ BOOL CreateCompatibleProtocolBlock(
 */
 BOOL CreateCompatibleOpenBlock(
     _In_ ULONG ObjectVersion,
+    _In_ OPEN_BLOCK_VERSIONS *BlockRef,
     _Out_ NDIS_OPEN_BLOCK_COMPATIBLE *OpenBlock)
 {
     switch (ObjectVersion) {
 
-    case 1: //7600
-        OpenBlock->ProtocolNextOpen = g_OpenBlock.u1.Versions.v1->ProtocolNextOpen;
-        OpenBlock->AllocateSharedMemoryHandler = g_OpenBlock.u1.Versions.v1->AllocateSharedMemoryContext;
-        OpenBlock->BindDeviceName = g_OpenBlock.u1.Versions.v1->BindDeviceName;
-        OpenBlock->CmActivateVcCompleteHandler = g_OpenBlock.u1.Versions.v1->CmActivateVcCompleteHandler;
-        OpenBlock->CmDeactivateVcCompleteHandler = g_OpenBlock.u1.Versions.v1->CmDeactivateVcCompleteHandler;
-        OpenBlock->CoCreateVcHandler = g_OpenBlock.u1.Versions.v1->CoCreateVcHandler;
-        OpenBlock->CoDeleteVcHandler = g_OpenBlock.u1.Versions.v1->CoDeleteVcHandler;
-        OpenBlock->CoOidRequestCompleteHandler = g_OpenBlock.u1.Versions.v1->CoOidRequestCompleteHandler;
-        OpenBlock->CoOidRequestHandler = g_OpenBlock.u1.Versions.v1->CoOidRequestHandler;
-        OpenBlock->CoRequestCompleteHandler = g_OpenBlock.u1.Versions.v1->CoRequestCompleteHandler;
-        OpenBlock->CoRequestHandler = g_OpenBlock.u1.Versions.v1->CoRequestHandler;
-        OpenBlock->DirectOidRequestCompleteHandler = g_OpenBlock.u1.Versions.v1->DirectOidRequestCompleteHandler;
-        OpenBlock->DirectOidRequestHandler = g_OpenBlock.u1.Versions.v1->DirectOidRequestHandler;
-        OpenBlock->FreeSharedMemoryHandler = g_OpenBlock.u1.Versions.v1->FreeSharedMemoryHandler;
-        OpenBlock->IndicateOffloadEventHandler = g_OpenBlock.u1.Versions.v1->IndicateOffloadEventHandler;
-        OpenBlock->InitiateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v1->InitiateOffloadCompleteHandler;
-        OpenBlock->InvalidateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v1->InvalidateOffloadCompleteHandler;
-        OpenBlock->MiniportCoCreateVcHandler = g_OpenBlock.u1.Versions.v1->MiniportCoCreateVcHandler;
-        OpenBlock->MiniportCoOidRequestHandler = g_OpenBlock.u1.Versions.v1->MiniportCoOidRequestHandler;
-        OpenBlock->MiniportCoRequestHandler = g_OpenBlock.u1.Versions.v1->MiniportCoRequestHandler;
-        OpenBlock->Ndis5WanSendHandler = g_OpenBlock.u1.Versions.v1->Ndis5WanSendHandler;
-        OpenBlock->NextReturnNetBufferListsHandler = g_OpenBlock.u1.Versions.v1->NextReturnNetBufferListsHandler;
-        OpenBlock->NextSendHandler = g_OpenBlock.u1.Versions.v1->NextSendHandler;
-        OpenBlock->OidRequestCompleteHandler = g_OpenBlock.u1.Versions.v1->OidRequestCompleteHandler;
-        OpenBlock->OidRequestHandler = g_OpenBlock.u1.Versions.v1->OidRequestCompleteHandler;
-        OpenBlock->ProtSendCompleteHandler = g_OpenBlock.u1.Versions.v1->ProtSendCompleteHandler;
-        OpenBlock->ProtSendNetBufferListsComplete = g_OpenBlock.u1.Versions.v1->ProtSendNetBufferListsComplete;
-        OpenBlock->QueryOffloadCompleteHandler = g_OpenBlock.u1.Versions.v1->QueryOffloadCompleteHandler;
-        OpenBlock->ReceiveCompleteHandler = g_OpenBlock.u1.Versions.v1->ReceiveCompleteHandler;
-        OpenBlock->ReceiveHandler = g_OpenBlock.u1.Versions.v1->ReceiveHandler;
-        OpenBlock->ReceiveNetBufferLists = g_OpenBlock.u1.Versions.v1->ReceiveNetBufferLists;
-        OpenBlock->ReceivePacketHandler = g_OpenBlock.u1.Versions.v1->ReceivePacketHandler;
-        OpenBlock->RequestCompleteHandler = g_OpenBlock.u1.Versions.v1->RequestCompleteHandler;
-        OpenBlock->RequestHandler = g_OpenBlock.u1.Versions.v1->RequestHandler;
-        OpenBlock->ResetCompleteHandler = g_OpenBlock.u1.Versions.v1->ResetCompleteHandler;
-        OpenBlock->RootDeviceName = g_OpenBlock.u1.Versions.v1->RootDeviceName;
-        OpenBlock->SavedCancelSendPacketsHandler = g_OpenBlock.u1.Versions.v1->SavedCancelSendPacketsHandler;
-        OpenBlock->SavedSendHandler = g_OpenBlock.u1.Versions.v1->SavedSendHandler;
-        OpenBlock->SavedSendNBLHandler = g_OpenBlock.u1.Versions.v1->SavedSendNBLHandler;
-        OpenBlock->SavedSendPacketsHandler = g_OpenBlock.u1.Versions.v1->SavedSendPacketsHandler;
-        OpenBlock->SendCompleteHandler = g_OpenBlock.u1.Versions.v1->SendCompleteHandler;
-        OpenBlock->SendHandler = g_OpenBlock.u1.Versions.v1->SendHandler;
-        OpenBlock->SendPacketsHandler = g_OpenBlock.u1.Versions.v1->SendPacketsHandler;
-        OpenBlock->TcpOffloadDisconnectCompleteHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadDisconnectCompleteHandler;
-        OpenBlock->TcpOffloadEventHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadEventHandler;
-        OpenBlock->TcpOffloadForwardCompleteHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadForwardCompleteHandler;
-        OpenBlock->TcpOffloadReceiveCompleteHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadReceiveCompleteHandler;
-        OpenBlock->TcpOffloadReceiveIndicateHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadReceiveIndicateHandler;
-        OpenBlock->TcpOffloadSendCompleteHandler = g_OpenBlock.u1.Versions.v1->TcpOffloadSendCompleteHandler;
-        OpenBlock->TerminateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v1->TerminateOffloadCompleteHandler;
-        OpenBlock->TransferDataCompleteHandler = g_OpenBlock.u1.Versions.v1->TransferDataCompleteHandler;
-        OpenBlock->TransferDataHandler = g_OpenBlock.u1.Versions.v1->TransferDataHandler;
-        OpenBlock->UpdateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v1->UpdateOffloadCompleteHandler;
-        OpenBlock->WanReceiveHandler = g_OpenBlock.u1.Versions.v1->WanReceiveHandler;
+    case 1: //7600..7601
+        OpenBlock->ProtocolNextOpen = BlockRef->u1.Versions.v1->ProtocolNextOpen;
+        OpenBlock->BindDeviceName = BlockRef->u1.Versions.v1->BindDeviceName;
+        OpenBlock->RootDeviceName = BlockRef->u1.Versions.v1->RootDeviceName;
+
+        OpenBlock->AllocateSharedMemoryHandler = BlockRef->u1.Versions.v1->AllocateSharedMemoryHandler;
+        OpenBlock->CancelSendPacketsHandler = BlockRef->u1.Versions.v1->CancelSendPacketsHandler;
+        OpenBlock->CmActivateVcCompleteHandler = BlockRef->u1.Versions.v1->CmActivateVcCompleteHandler;
+        OpenBlock->CmDeactivateVcCompleteHandler = BlockRef->u1.Versions.v1->CmDeactivateVcCompleteHandler;
+        OpenBlock->CoCreateVcHandler = BlockRef->u1.Versions.v1->CoCreateVcHandler;
+        OpenBlock->CoDeleteVcHandler = BlockRef->u1.Versions.v1->CoDeleteVcHandler;
+        OpenBlock->CoOidRequestCompleteHandler = BlockRef->u1.Versions.v1->CoOidRequestCompleteHandler;
+        OpenBlock->CoOidRequestHandler = BlockRef->u1.Versions.v1->CoOidRequestHandler;
+        OpenBlock->CoRequestCompleteHandler = BlockRef->u1.Versions.v1->CoRequestCompleteHandler;
+        OpenBlock->CoRequestHandler = BlockRef->u1.Versions.v1->CoRequestHandler;
+        OpenBlock->DirectOidRequestCompleteHandler = BlockRef->u1.Versions.v1->DirectOidRequestCompleteHandler;
+        OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.v1->DirectOidRequestHandler;
+        OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.v1->FreeSharedMemoryHandler;
+        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.v1->IndicateOffloadEventHandler;
+        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.v1->InitiateOffloadCompleteHandler;
+        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.v1->InvalidateOffloadCompleteHandler;
+        OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.v1->MiniportCoCreateVcHandler;
+        OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.v1->MiniportCoOidRequestHandler;
+        OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.v1->MiniportCoRequestHandler;
+        OpenBlock->Ndis5WanSendHandler = BlockRef->u1.Versions.v1->Ndis5WanSendHandler;
+        OpenBlock->NextReturnNetBufferListsHandler = BlockRef->u1.Versions.v1->NextReturnNetBufferListsHandler;
+        OpenBlock->NextSendHandler = BlockRef->u1.Versions.v1->NextSendHandler;
+        OpenBlock->OidRequestCompleteHandler = BlockRef->u1.Versions.v1->OidRequestCompleteHandler;
+        OpenBlock->OidRequestHandler = BlockRef->u1.Versions.v1->OidRequestHandler;
+        OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.v1->ProtSendCompleteHandler;
+        OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.v1->ProtSendNetBufferListsComplete;
+        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.v1->QueryOffloadCompleteHandler;
+        OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.v1->ReceiveCompleteHandler;
+        OpenBlock->ReceiveHandler = BlockRef->u1.Versions.v1->ReceiveHandler;
+        OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.v1->ReceiveNetBufferLists;
+        OpenBlock->ReceivePacketHandler = BlockRef->u1.Versions.v1->ReceivePacketHandler;
+        OpenBlock->RequestCompleteHandler = BlockRef->u1.Versions.v1->RequestCompleteHandler;
+        OpenBlock->RequestHandler = BlockRef->u1.Versions.v1->RequestHandler;
+        OpenBlock->ResetCompleteHandler = BlockRef->u1.Versions.v1->ResetCompleteHandler;
+        OpenBlock->ResetHandler = BlockRef->u1.Versions.v1->ResetHandler;
+        OpenBlock->SavedCancelSendPacketsHandler = BlockRef->u1.Versions.v1->SavedCancelSendPacketsHandler;
+        OpenBlock->SavedSendHandler = BlockRef->u1.Versions.v1->SavedSendHandler;
+        OpenBlock->SavedSendNBLHandler = BlockRef->u1.Versions.v1->SavedSendNBLHandler;
+        OpenBlock->SavedSendPacketsHandler = BlockRef->u1.Versions.v1->SavedSendPacketsHandler;
+        OpenBlock->SendCompleteHandler = BlockRef->u1.Versions.v1->SendCompleteHandler;
+        OpenBlock->SendHandler = BlockRef->u1.Versions.v1->SendHandler;
+        OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.v1->SendPacketsHandler;
+        OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.v1->StatusCompleteHandler;
+        OpenBlock->StatusHandler = BlockRef->u1.Versions.v1->StatusHandler;
+        OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.v1->TcpOffloadDisconnectCompleteHandler;
+        OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.v1->TcpOffloadEventHandler;
+        OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.v1->TcpOffloadForwardCompleteHandler;
+        OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.v1->TcpOffloadReceiveCompleteHandler;
+        OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.v1->TcpOffloadReceiveIndicateHandler;
+        OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.v1->TcpOffloadSendCompleteHandler;
+        OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.v1->TerminateOffloadCompleteHandler;
+        OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.v1->TransferDataCompleteHandler;
+        OpenBlock->TransferDataHandler = BlockRef->u1.Versions.v1->TransferDataHandler;
+        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.v1->UpdateOffloadCompleteHandler;
+        OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.v1->WanReceiveHandler;
+        OpenBlock->WSendHandler = BlockRef->u1.Versions.v1->WSendHandler;
+        OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.v1->WSendPacketsHandler;
+        OpenBlock->WTransferDataHandler = BlockRef->u1.Versions.v1->WTransferDataHandler;
         break;
 
     case 2: //9200
-        OpenBlock->ProtocolNextOpen = g_OpenBlock.u1.Versions.v2->ProtocolNextOpen;
-        OpenBlock->AllocateSharedMemoryHandler = g_OpenBlock.u1.Versions.v2->AllocateSharedMemoryContext;
-        OpenBlock->BindDeviceName = g_OpenBlock.u1.Versions.v2->BindDeviceName;
-        OpenBlock->CmActivateVcCompleteHandler = g_OpenBlock.u1.Versions.v2->CmActivateVcCompleteHandler;
-        OpenBlock->CmDeactivateVcCompleteHandler = g_OpenBlock.u1.Versions.v2->CmDeactivateVcCompleteHandler;
-        OpenBlock->CoCreateVcHandler = g_OpenBlock.u1.Versions.v2->CoCreateVcHandler;
-        OpenBlock->CoDeleteVcHandler = g_OpenBlock.u1.Versions.v2->CoDeleteVcHandler;
-        OpenBlock->CoOidRequestCompleteHandler = g_OpenBlock.u1.Versions.v2->CoOidRequestCompleteHandler;
-        OpenBlock->CoOidRequestHandler = g_OpenBlock.u1.Versions.v2->CoOidRequestHandler;
-        OpenBlock->CoRequestCompleteHandler = g_OpenBlock.u1.Versions.v2->CoRequestCompleteHandler;
-        OpenBlock->CoRequestHandler = g_OpenBlock.u1.Versions.v2->CoRequestHandler;
-        OpenBlock->DirectOidRequestHandler = g_OpenBlock.u1.Versions.v2->DirectOidRequestHandler;
-        OpenBlock->FreeSharedMemoryHandler = g_OpenBlock.u1.Versions.v2->FreeSharedMemoryHandler;
-        OpenBlock->IndicateOffloadEventHandler = g_OpenBlock.u1.Versions.v2->IndicateOffloadEventHandler;
-        OpenBlock->InitiateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v2->InitiateOffloadCompleteHandler;
-        OpenBlock->InvalidateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v2->InvalidateOffloadCompleteHandler;
-        OpenBlock->MiniportCoCreateVcHandler = g_OpenBlock.u1.Versions.v2->MiniportCoCreateVcHandler;
-        OpenBlock->MiniportCoOidRequestHandler = g_OpenBlock.u1.Versions.v2->MiniportCoOidRequestHandler;
-        OpenBlock->MiniportCoRequestHandler = g_OpenBlock.u1.Versions.v2->MiniportCoRequestHandler;
-        OpenBlock->Ndis5WanSendHandler = g_OpenBlock.u1.Versions.v2->Ndis5WanSendHandler;
-        OpenBlock->NextReturnNetBufferListsHandler = g_OpenBlock.u1.Versions.v2->NextReturnNetBufferListsHandler;
-        OpenBlock->NextSendHandler = g_OpenBlock.u1.Versions.v2->NextSendHandler;
-        OpenBlock->OidRequestCompleteHandler = g_OpenBlock.u1.Versions.v2->OidRequestCompleteHandler;
-        OpenBlock->OidRequestHandler = g_OpenBlock.u1.Versions.v2->OidRequestCompleteHandler;
-        OpenBlock->ProtSendCompleteHandler = g_OpenBlock.u1.Versions.v2->ProtSendCompleteHandler;
-        OpenBlock->ProtSendNetBufferListsComplete = g_OpenBlock.u1.Versions.v2->ProtSendNetBufferListsComplete;
-        OpenBlock->QueryOffloadCompleteHandler = g_OpenBlock.u1.Versions.v2->QueryOffloadCompleteHandler;
-        OpenBlock->ReceiveCompleteHandler = g_OpenBlock.u1.Versions.v2->ReceiveCompleteHandler;
-        OpenBlock->ReceiveHandler = g_OpenBlock.u1.Versions.v2->ReceiveHandler;
-        OpenBlock->ReceiveNetBufferLists = g_OpenBlock.u1.Versions.v2->ReceiveNetBufferLists;
-        OpenBlock->ReceivePacketHandler = g_OpenBlock.u1.Versions.v2->ReceivePacketHandler;
-        OpenBlock->RequestCompleteHandler = g_OpenBlock.u1.Versions.v2->RequestCompleteHandler;
-        OpenBlock->RequestHandler = g_OpenBlock.u1.Versions.v2->RequestHandler;
-        OpenBlock->ResetCompleteHandler = g_OpenBlock.u1.Versions.v2->ResetCompleteHandler;
-        OpenBlock->RootDeviceName = g_OpenBlock.u1.Versions.v2->RootDeviceName;
-        OpenBlock->SavedCancelSendPacketsHandler = g_OpenBlock.u1.Versions.v2->SavedCancelSendPacketsHandler;
-        OpenBlock->SavedSendHandler = g_OpenBlock.u1.Versions.v2->SavedSendHandler;
-        OpenBlock->SavedSendPacketsHandler = g_OpenBlock.u1.Versions.v2->SavedSendPacketsHandler;
-        OpenBlock->SendCompleteHandler = g_OpenBlock.u1.Versions.v2->SendCompleteHandler;
-        OpenBlock->SendHandler = g_OpenBlock.u1.Versions.v2->SendHandler;
-        OpenBlock->SendPacketsHandler = g_OpenBlock.u1.Versions.v2->SendPacketsHandler;
-        OpenBlock->TcpOffloadDisconnectCompleteHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadDisconnectCompleteHandler;
-        OpenBlock->TcpOffloadEventHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadEventHandler;
-        OpenBlock->TcpOffloadForwardCompleteHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadForwardCompleteHandler;
-        OpenBlock->TcpOffloadReceiveCompleteHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadReceiveCompleteHandler;
-        OpenBlock->TcpOffloadReceiveIndicateHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadReceiveIndicateHandler;
-        OpenBlock->TcpOffloadSendCompleteHandler = g_OpenBlock.u1.Versions.v2->TcpOffloadSendCompleteHandler;
-        OpenBlock->TerminateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v2->TerminateOffloadCompleteHandler;
-        OpenBlock->TransferDataCompleteHandler = g_OpenBlock.u1.Versions.v2->TransferDataCompleteHandler;
-        OpenBlock->TransferDataHandler = g_OpenBlock.u1.Versions.v2->TransferDataHandler;
-        OpenBlock->UpdateOffloadCompleteHandler = g_OpenBlock.u1.Versions.v2->UpdateOffloadCompleteHandler;
-        OpenBlock->WanReceiveHandler = g_OpenBlock.u1.Versions.v2->WanReceiveHandler;
+        OpenBlock->ProtocolNextOpen = BlockRef->u1.Versions.v2->ProtocolNextOpen;
+        OpenBlock->BindDeviceName = BlockRef->u1.Versions.v2->BindDeviceName;
+        OpenBlock->RootDeviceName = BlockRef->u1.Versions.v2->RootDeviceName;
+
+        OpenBlock->AllocateSharedMemoryHandler = BlockRef->u1.Versions.v2->AllocateSharedMemoryHandler;
+        OpenBlock->CancelSendPacketsHandler = BlockRef->u1.Versions.v2->CancelSendPacketsHandler;
+        OpenBlock->CmActivateVcCompleteHandler = BlockRef->u1.Versions.v2->CmActivateVcCompleteHandler;
+        OpenBlock->CmDeactivateVcCompleteHandler = BlockRef->u1.Versions.v2->CmDeactivateVcCompleteHandler;
+        OpenBlock->CoCreateVcHandler = BlockRef->u1.Versions.v2->CoCreateVcHandler;
+        OpenBlock->CoDeleteVcHandler = BlockRef->u1.Versions.v2->CoDeleteVcHandler;
+        OpenBlock->CoOidRequestCompleteHandler = BlockRef->u1.Versions.v2->CoOidRequestCompleteHandler;
+        OpenBlock->CoOidRequestHandler = BlockRef->u1.Versions.v2->CoOidRequestHandler;
+        OpenBlock->CoRequestCompleteHandler = BlockRef->u1.Versions.v2->CoRequestCompleteHandler;
+        OpenBlock->CoRequestHandler = BlockRef->u1.Versions.v2->CoRequestHandler;
+        OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.v2->DirectOidRequestHandler;
+        OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.v2->FreeSharedMemoryHandler;
+        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.v2->IndicateOffloadEventHandler;
+        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.v2->InitiateOffloadCompleteHandler;
+        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.v2->InvalidateOffloadCompleteHandler;
+        OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.v2->MiniportCoCreateVcHandler;
+        OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.v2->MiniportCoOidRequestHandler;
+        OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.v2->MiniportCoRequestHandler;
+        OpenBlock->Ndis5WanSendHandler = BlockRef->u1.Versions.v2->Ndis5WanSendHandler;
+        OpenBlock->NextReturnNetBufferListsHandler = BlockRef->u1.Versions.v2->NextReturnNetBufferListsHandler;
+        OpenBlock->NextSendHandler = BlockRef->u1.Versions.v2->NextSendHandler;
+        OpenBlock->OidRequestCompleteHandler = BlockRef->u1.Versions.v2->OidRequestCompleteHandler;
+        OpenBlock->OidRequestHandler = BlockRef->u1.Versions.v2->OidRequestHandler;
+        OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.v2->ProtSendCompleteHandler;
+        OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.v2->ProtSendNetBufferListsComplete;
+        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.v2->QueryOffloadCompleteHandler;
+        OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.v2->ReceiveCompleteHandler;
+        OpenBlock->ReceiveHandler = BlockRef->u1.Versions.v2->ReceiveHandler;
+        OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.v2->ReceiveNetBufferLists;
+        OpenBlock->ReceivePacketHandler = BlockRef->u1.Versions.v2->ReceivePacketHandler;
+        OpenBlock->RequestCompleteHandler = BlockRef->u1.Versions.v2->RequestCompleteHandler;
+        OpenBlock->RequestHandler = BlockRef->u1.Versions.v2->RequestHandler;
+        OpenBlock->ResetCompleteHandler = BlockRef->u1.Versions.v2->ResetCompleteHandler;
+        OpenBlock->ResetHandler = BlockRef->u1.Versions.v2->ResetHandler;
+        OpenBlock->SavedCancelSendPacketsHandler = BlockRef->u1.Versions.v2->SavedCancelSendPacketsHandler;
+        OpenBlock->SavedSendHandler = BlockRef->u1.Versions.v2->SavedSendHandler;
+        OpenBlock->SavedSendPacketsHandler = BlockRef->u1.Versions.v2->SavedSendPacketsHandler;
+        OpenBlock->SendCompleteHandler = BlockRef->u1.Versions.v2->SendCompleteHandler;
+        OpenBlock->SendHandler = BlockRef->u1.Versions.v2->SendHandler;
+        OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.v2->SendPacketsHandler;
+        OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.v2->StatusCompleteHandler;
+        OpenBlock->StatusHandler = BlockRef->u1.Versions.v2->StatusHandler;
+        OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.v2->TcpOffloadDisconnectCompleteHandler;
+        OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.v2->TcpOffloadEventHandler;
+        OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.v2->TcpOffloadForwardCompleteHandler;
+        OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.v2->TcpOffloadReceiveCompleteHandler;
+        OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.v2->TcpOffloadReceiveIndicateHandler;
+        OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.v2->TcpOffloadSendCompleteHandler;
+        OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.v2->TerminateOffloadCompleteHandler;
+        OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.v2->TransferDataCompleteHandler;
+        OpenBlock->TransferDataHandler = BlockRef->u1.Versions.v2->TransferDataHandler;
+        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.v2->UpdateOffloadCompleteHandler;
+        OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.v2->WanReceiveHandler;
+        OpenBlock->WSendHandler = BlockRef->u1.Versions.v2->WSendHandler;
+        OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.v2->WSendPacketsHandler;
+        OpenBlock->WTransferDataHandler = BlockRef->u1.Versions.v2->WTransferDataHandler;
         break;
 
-    case 3: //9600 .. 10586      
-        OpenBlock->ProtocolNextOpen = g_OpenBlock.u1.Versions.u_v3.v3c->ProtocolNextOpen;
-        OpenBlock->AllocateSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v3.v3c->AllocateSharedMemoryContext;
-        OpenBlock->BindDeviceName = g_OpenBlock.u1.Versions.u_v3.v3c->BindDeviceName;
-        OpenBlock->CmActivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3->CmActivateVcCompleteHandler;
-        OpenBlock->CmDeactivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3->CmDeactivateVcCompleteHandler;
-        OpenBlock->CoCreateVcHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoCreateVcHandler;
-        OpenBlock->CoDeleteVcHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoDeleteVcHandler;
-        OpenBlock->CoOidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoOidRequestCompleteHandler;
-        OpenBlock->CoOidRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoOidRequestHandler;
-        OpenBlock->CoRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoRequestCompleteHandler;
-        OpenBlock->CoRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3->CoRequestHandler;
-        OpenBlock->DirectOidRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3c->DirectOidRequestHandler;
-        OpenBlock->FreeSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v3.v3c->FreeSharedMemoryHandler;
-        OpenBlock->IndicateOffloadEventHandler = g_OpenBlock.u1.Versions.u_v3.v3c->IndicateOffloadEventHandler;
-        OpenBlock->InitiateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->InitiateOffloadCompleteHandler;
-        OpenBlock->InvalidateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->InvalidateOffloadCompleteHandler;
-        OpenBlock->MiniportCoCreateVcHandler = g_OpenBlock.u1.Versions.u_v3.v3->MiniportCoCreateVcHandler;
-        OpenBlock->MiniportCoOidRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3->MiniportCoOidRequestHandler;
-        OpenBlock->MiniportCoRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3->MiniportCoRequestHandler;
-        OpenBlock->Ndis5WanSendHandler = g_OpenBlock.u1.Versions.u_v3.v3c->Ndis5WanSendHandler;
-        OpenBlock->NextReturnNetBufferListsHandler = g_OpenBlock.u1.Versions.u_v3.v3c->NextReturnNetBufferListsHandler;
-        OpenBlock->NextSendHandler = g_OpenBlock.u1.Versions.u_v3.v3c->NextSendHandler;
-        OpenBlock->OidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->OidRequestCompleteHandler;
-        OpenBlock->OidRequestHandler = g_OpenBlock.u1.Versions.u_v3.v3c->OidRequestCompleteHandler;
-        OpenBlock->ProtSendCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->ProtSendCompleteHandler;
-        OpenBlock->ProtSendNetBufferListsComplete = g_OpenBlock.u1.Versions.u_v3.v3c->ProtSendNetBufferListsComplete;
-        OpenBlock->QueryOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->QueryOffloadCompleteHandler;
-        OpenBlock->ReceiveCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->ReceiveCompleteHandler;
-        OpenBlock->ReceiveHandler = g_OpenBlock.u1.Versions.u_v3.v3c->ReceiveHandler;
-        OpenBlock->ReceiveNetBufferLists = g_OpenBlock.u1.Versions.u_v3.v3c->ReceiveNetBufferLists;
-        OpenBlock->ReceivePacketHandler = g_OpenBlock.u1.Versions.u_v3.v3c->ReceivePacketHandler;
-        OpenBlock->RequestCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->RequestCompleteHandler;
-        OpenBlock->RequestHandler = g_OpenBlock.u1.Versions.u_v3.v3c->RequestHandler;
-        OpenBlock->ResetCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->ResetCompleteHandler;
-        OpenBlock->RootDeviceName = g_OpenBlock.u1.Versions.u_v3.v3c->RootDeviceName;
-        OpenBlock->SavedCancelSendPacketsHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SavedCancelSendPacketsHandler;
-        OpenBlock->SavedSendHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SavedSendHandler;
-        OpenBlock->SavedSendPacketsHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SavedSendPacketsHandler;
-        OpenBlock->SendCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SendCompleteHandler;
-        OpenBlock->SendHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SendHandler;
-        OpenBlock->SendPacketsHandler = g_OpenBlock.u1.Versions.u_v3.v3c->SendPacketsHandler;
-        OpenBlock->TcpOffloadDisconnectCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadDisconnectCompleteHandler;
-        OpenBlock->TcpOffloadEventHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadEventHandler;
-        OpenBlock->TcpOffloadForwardCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadForwardCompleteHandler;
-        OpenBlock->TcpOffloadReceiveCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadReceiveCompleteHandler;
-        OpenBlock->TcpOffloadReceiveIndicateHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadReceiveIndicateHandler;
-        OpenBlock->TcpOffloadSendCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TcpOffloadSendCompleteHandler;
-        OpenBlock->TerminateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TerminateOffloadCompleteHandler;
-        OpenBlock->TransferDataCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TransferDataCompleteHandler;
-        OpenBlock->TransferDataHandler = g_OpenBlock.u1.Versions.u_v3.v3c->TransferDataHandler;
-        OpenBlock->UpdateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v3.v3c->UpdateOffloadCompleteHandler;
-        OpenBlock->WanReceiveHandler = g_OpenBlock.u1.Versions.u_v3.v3c->WanReceiveHandler;
+    case 3: //9600..10586      
+        OpenBlock->ProtocolNextOpen = BlockRef->u1.Versions.u_v3.v3c->ProtocolNextOpen;
+        OpenBlock->BindDeviceName = BlockRef->u1.Versions.u_v3.v3c->BindDeviceName;
+        OpenBlock->RootDeviceName = BlockRef->u1.Versions.u_v3.v3c->RootDeviceName;
+
+        OpenBlock->AllocateSharedMemoryHandler = BlockRef->u1.Versions.u_v3.v3c->AllocateSharedMemoryHandler;
+        OpenBlock->CancelSendPacketsHandler = BlockRef->u1.Versions.u_v3.v3c->CancelSendPacketsHandler;
+        OpenBlock->CmActivateVcCompleteHandler = BlockRef->u1.Versions.u_v3.v3->CmActivateVcCompleteHandler;
+        OpenBlock->CmDeactivateVcCompleteHandler = BlockRef->u1.Versions.u_v3.v3->CmDeactivateVcCompleteHandler;
+        OpenBlock->CoCreateVcHandler = BlockRef->u1.Versions.u_v3.v3->CoCreateVcHandler;
+        OpenBlock->CoDeleteVcHandler = BlockRef->u1.Versions.u_v3.v3->CoDeleteVcHandler;
+        OpenBlock->CoOidRequestCompleteHandler = BlockRef->u1.Versions.u_v3.v3->CoOidRequestCompleteHandler;
+        OpenBlock->CoOidRequestHandler = BlockRef->u1.Versions.u_v3.v3->CoOidRequestHandler;
+        OpenBlock->CoRequestCompleteHandler = BlockRef->u1.Versions.u_v3.v3->CoRequestCompleteHandler;
+        OpenBlock->CoRequestHandler = BlockRef->u1.Versions.u_v3.v3->CoRequestHandler;
+        OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.u_v3.v3c->DirectOidRequestHandler;
+        OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.u_v3.v3c->FreeSharedMemoryHandler;
+        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.u_v3.v3c->IndicateOffloadEventHandler;
+        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->InitiateOffloadCompleteHandler;
+        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->InvalidateOffloadCompleteHandler;
+        OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.u_v3.v3->MiniportCoCreateVcHandler;
+        OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.u_v3.v3->MiniportCoOidRequestHandler;
+        OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.u_v3.v3->MiniportCoRequestHandler;
+        OpenBlock->Ndis5WanSendHandler = BlockRef->u1.Versions.u_v3.v3c->Ndis5WanSendHandler;
+        OpenBlock->NextReturnNetBufferListsHandler = BlockRef->u1.Versions.u_v3.v3c->NextReturnNetBufferListsHandler;
+        OpenBlock->NextSendHandler = BlockRef->u1.Versions.u_v3.v3c->NextSendHandler;
+        OpenBlock->OidRequestCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->OidRequestCompleteHandler;
+        OpenBlock->OidRequestHandler = BlockRef->u1.Versions.u_v3.v3c->OidRequestHandler;
+        OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->ProtSendCompleteHandler;
+        OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.u_v3.v3c->ProtSendNetBufferListsComplete;
+        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->QueryOffloadCompleteHandler;
+        OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->ReceiveCompleteHandler;
+        OpenBlock->ReceiveHandler = BlockRef->u1.Versions.u_v3.v3c->ReceiveHandler;
+        OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.u_v3.v3c->ReceiveNetBufferLists;
+        OpenBlock->ReceivePacketHandler = BlockRef->u1.Versions.u_v3.v3c->ReceivePacketHandler;
+        OpenBlock->RequestCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->RequestCompleteHandler;
+        OpenBlock->RequestHandler = BlockRef->u1.Versions.u_v3.v3c->RequestHandler;
+        OpenBlock->ResetCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->ResetCompleteHandler;
+        OpenBlock->ResetHandler = BlockRef->u1.Versions.u_v3.v3c->ResetHandler;
+        OpenBlock->SavedCancelSendPacketsHandler = BlockRef->u1.Versions.u_v3.v3c->SavedCancelSendPacketsHandler;
+        OpenBlock->SavedSendHandler = BlockRef->u1.Versions.u_v3.v3c->SavedSendHandler;
+        OpenBlock->SavedSendPacketsHandler = BlockRef->u1.Versions.u_v3.v3c->SavedSendPacketsHandler;
+        OpenBlock->SendCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->SendCompleteHandler;
+        OpenBlock->SendHandler = BlockRef->u1.Versions.u_v3.v3c->SendHandler;
+        OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.u_v3.v3c->SendPacketsHandler;
+        OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->StatusCompleteHandler;
+        OpenBlock->StatusHandler = BlockRef->u1.Versions.u_v3.v3c->StatusHandler;
+        OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadDisconnectCompleteHandler;
+        OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadEventHandler;
+        OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadForwardCompleteHandler;
+        OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadReceiveCompleteHandler;
+        OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadReceiveIndicateHandler;
+        OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TcpOffloadSendCompleteHandler;
+        OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TerminateOffloadCompleteHandler;
+        OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->TransferDataCompleteHandler;
+        OpenBlock->TransferDataHandler = BlockRef->u1.Versions.u_v3.v3c->TransferDataHandler;
+        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.u_v3.v3c->UpdateOffloadCompleteHandler;
+        OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.u_v3.v3c->WanReceiveHandler;
+        OpenBlock->WSendHandler = BlockRef->u1.Versions.u_v3.v3c->WSendHandler;
+        OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.u_v3.v3c->WSendPacketsHandler;
+        OpenBlock->WTransferDataHandler = BlockRef->u1.Versions.u_v3.v3c->WTransferDataHandler;
         break;
 
-    case 4: //14393 .. 17134
-        OpenBlock->ProtocolNextOpen = g_OpenBlock.u1.Versions.u_v4.v4c->ProtocolNextOpen;
-        OpenBlock->AllocateSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v4.v4c->AllocateSharedMemoryContext;
-        OpenBlock->BindDeviceName = g_OpenBlock.u1.Versions.u_v4.v4c->BindDeviceName;
-        OpenBlock->CmActivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4->CmActivateVcCompleteHandler;
-        OpenBlock->CmDeactivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4->CmDeactivateVcCompleteHandler;
-        OpenBlock->CoCreateVcHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoCreateVcHandler;
-        OpenBlock->CoDeleteVcHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoDeleteVcHandler;
-        OpenBlock->CoOidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoOidRequestCompleteHandler;
-        OpenBlock->CoOidRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoOidRequestHandler;
-        OpenBlock->CoRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoRequestCompleteHandler;
-        OpenBlock->CoRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4->CoRequestHandler;
-        OpenBlock->DirectOidRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4c->DirectOidRequestHandler;
-        OpenBlock->FreeSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v4.v4c->FreeSharedMemoryHandler;
-        OpenBlock->IndicateOffloadEventHandler = g_OpenBlock.u1.Versions.u_v4.v4c->IndicateOffloadEventHandler;
-        OpenBlock->InitiateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->InitiateOffloadCompleteHandler;
-        OpenBlock->InvalidateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->InvalidateOffloadCompleteHandler;
-        OpenBlock->MiniportCoCreateVcHandler = g_OpenBlock.u1.Versions.u_v4.v4->MiniportCoCreateVcHandler;
-        OpenBlock->MiniportCoOidRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4->MiniportCoOidRequestHandler;
-        OpenBlock->MiniportCoRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4->MiniportCoRequestHandler;
-        OpenBlock->Ndis5WanSendHandler = g_OpenBlock.u1.Versions.u_v4.v4c->Ndis5WanSendHandler;
-        OpenBlock->NextReturnNetBufferListsHandler = g_OpenBlock.u1.Versions.u_v4.v4c->NextReturnNetBufferListsHandler;
-        OpenBlock->NextSendHandler = g_OpenBlock.u1.Versions.u_v4.v4c->NextSendHandler;
-        OpenBlock->OidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->OidRequestCompleteHandler;
-        OpenBlock->OidRequestHandler = g_OpenBlock.u1.Versions.u_v4.v4c->OidRequestCompleteHandler;
-        OpenBlock->ProtSendCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->ProtSendCompleteHandler;
-        OpenBlock->ProtSendNetBufferListsComplete = g_OpenBlock.u1.Versions.u_v4.v4c->ProtSendNetBufferListsComplete;
-        OpenBlock->QueryOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->QueryOffloadCompleteHandler;
-        OpenBlock->ReceiveCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->ReceiveCompleteHandler;
-        OpenBlock->ReceiveHandler = g_OpenBlock.u1.Versions.u_v4.v4c->ReceiveHandler;
-        OpenBlock->ReceiveNetBufferLists = g_OpenBlock.u1.Versions.u_v4.v4c->ReceiveNetBufferLists;
-        OpenBlock->ReceivePacketHandler = g_OpenBlock.u1.Versions.u_v4.v4c->ReceivePacketHandler;
-        OpenBlock->RequestCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->RequestCompleteHandler;
-        OpenBlock->RequestHandler = g_OpenBlock.u1.Versions.u_v4.v4c->RequestHandler;
-        OpenBlock->ResetCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->ResetCompleteHandler;
-        OpenBlock->RootDeviceName = g_OpenBlock.u1.Versions.u_v4.v4c->RootDeviceName;
-        OpenBlock->SavedCancelSendPacketsHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SavedCancelSendPacketsHandler;
-        OpenBlock->SavedSendHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SavedSendHandler;
-        OpenBlock->SavedSendPacketsHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SavedSendPacketsHandler;
-        OpenBlock->SendCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SendCompleteHandler;
-        OpenBlock->SendHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SendHandler;
-        OpenBlock->SendPacketsHandler = g_OpenBlock.u1.Versions.u_v4.v4c->SendPacketsHandler;
-        OpenBlock->TcpOffloadDisconnectCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadDisconnectCompleteHandler;
-        OpenBlock->TcpOffloadEventHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadEventHandler;
-        OpenBlock->TcpOffloadForwardCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadForwardCompleteHandler;
-        OpenBlock->TcpOffloadReceiveCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadReceiveCompleteHandler;
-        OpenBlock->TcpOffloadReceiveIndicateHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadReceiveIndicateHandler;
-        OpenBlock->TcpOffloadSendCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TcpOffloadSendCompleteHandler;
-        OpenBlock->TerminateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TerminateOffloadCompleteHandler;
-        OpenBlock->TransferDataCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TransferDataCompleteHandler;
-        OpenBlock->TransferDataHandler = g_OpenBlock.u1.Versions.u_v4.v4c->TransferDataHandler;
-        OpenBlock->UpdateOffloadCompleteHandler = g_OpenBlock.u1.Versions.u_v4.v4c->UpdateOffloadCompleteHandler;
-        OpenBlock->WanReceiveHandler = g_OpenBlock.u1.Versions.u_v4.v4c->WanReceiveHandler;
+    case 4: //14393..17134
+        OpenBlock->ProtocolNextOpen = BlockRef->u1.Versions.u_v4.v4c->ProtocolNextOpen;
+        OpenBlock->BindDeviceName = BlockRef->u1.Versions.u_v4.v4c->BindDeviceName;
+        OpenBlock->RootDeviceName = BlockRef->u1.Versions.u_v4.v4c->RootDeviceName;
+
+        OpenBlock->AllocateSharedMemoryHandler = BlockRef->u1.Versions.u_v4.v4c->AllocateSharedMemoryHandler;
+        OpenBlock->CancelSendPacketsHandler = BlockRef->u1.Versions.u_v4.v4c->CancelSendPacketsHandler;
+        OpenBlock->CmActivateVcCompleteHandler = BlockRef->u1.Versions.u_v4.v4->CmActivateVcCompleteHandler;
+        OpenBlock->CmDeactivateVcCompleteHandler = BlockRef->u1.Versions.u_v4.v4->CmDeactivateVcCompleteHandler;
+        OpenBlock->CoCreateVcHandler = BlockRef->u1.Versions.u_v4.v4->CoCreateVcHandler;
+        OpenBlock->CoDeleteVcHandler = BlockRef->u1.Versions.u_v4.v4->CoDeleteVcHandler;
+        OpenBlock->CoOidRequestCompleteHandler = BlockRef->u1.Versions.u_v4.v4->CoOidRequestCompleteHandler;
+        OpenBlock->CoOidRequestHandler = BlockRef->u1.Versions.u_v4.v4->CoOidRequestHandler;
+        OpenBlock->CoRequestCompleteHandler = BlockRef->u1.Versions.u_v4.v4->CoRequestCompleteHandler;
+        OpenBlock->CoRequestHandler = BlockRef->u1.Versions.u_v4.v4->CoRequestHandler;
+        OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.u_v4.v4c->DirectOidRequestHandler;
+        OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.u_v4.v4c->FreeSharedMemoryHandler;
+        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.u_v4.v4c->IndicateOffloadEventHandler;
+        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->InitiateOffloadCompleteHandler;
+        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->InvalidateOffloadCompleteHandler;
+        OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.u_v4.v4->MiniportCoCreateVcHandler;
+        OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.u_v4.v4->MiniportCoOidRequestHandler;
+        OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.u_v4.v4->MiniportCoRequestHandler;
+        OpenBlock->Ndis5WanSendHandler = BlockRef->u1.Versions.u_v4.v4c->Ndis5WanSendHandler;
+        OpenBlock->NextReturnNetBufferListsHandler = BlockRef->u1.Versions.u_v4.v4c->NextReturnNetBufferListsHandler;
+        OpenBlock->NextSendHandler = BlockRef->u1.Versions.u_v4.v4c->NextSendHandler;
+        OpenBlock->OidRequestCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->OidRequestCompleteHandler;
+        OpenBlock->OidRequestHandler = BlockRef->u1.Versions.u_v4.v4c->OidRequestHandler;
+        OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->ProtSendCompleteHandler;
+        OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.u_v4.v4c->ProtSendNetBufferListsComplete;
+        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->QueryOffloadCompleteHandler;
+        OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->ReceiveCompleteHandler;
+        OpenBlock->ReceiveHandler = BlockRef->u1.Versions.u_v4.v4c->ReceiveHandler;
+        OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.u_v4.v4c->ReceiveNetBufferLists;
+        OpenBlock->ReceivePacketHandler = BlockRef->u1.Versions.u_v4.v4c->ReceivePacketHandler;
+        OpenBlock->RequestCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->RequestCompleteHandler;
+        OpenBlock->RequestHandler = BlockRef->u1.Versions.u_v4.v4c->RequestHandler;
+        OpenBlock->ResetCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->ResetCompleteHandler;
+        OpenBlock->ResetHandler = BlockRef->u1.Versions.u_v4.v4c->ResetHandler;
+        OpenBlock->SavedCancelSendPacketsHandler = BlockRef->u1.Versions.u_v4.v4c->SavedCancelSendPacketsHandler;
+        OpenBlock->SavedSendHandler = BlockRef->u1.Versions.u_v4.v4c->SavedSendHandler;
+        OpenBlock->SavedSendPacketsHandler = BlockRef->u1.Versions.u_v4.v4c->SavedSendPacketsHandler;
+        OpenBlock->SendCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->SendCompleteHandler;
+        OpenBlock->SendHandler = BlockRef->u1.Versions.u_v4.v4c->SendHandler;
+        OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.u_v4.v4c->SendPacketsHandler;
+        OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->StatusCompleteHandler;
+        OpenBlock->StatusHandler = BlockRef->u1.Versions.u_v4.v4c->StatusHandler;
+        OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadDisconnectCompleteHandler;
+        OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadEventHandler;
+        OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadForwardCompleteHandler;
+        OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadReceiveCompleteHandler;
+        OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadReceiveIndicateHandler;
+        OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TcpOffloadSendCompleteHandler;
+        OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TerminateOffloadCompleteHandler;
+        OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->TransferDataCompleteHandler;
+        OpenBlock->TransferDataHandler = BlockRef->u1.Versions.u_v4.v4c->TransferDataHandler;
+        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.u_v4.v4c->UpdateOffloadCompleteHandler;
+        OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.u_v4.v4c->WanReceiveHandler;
+        OpenBlock->WSendHandler = BlockRef->u1.Versions.u_v4.v4c->WSendHandler;
+        OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.u_v4.v4c->WSendPacketsHandler;
+        OpenBlock->WTransferDataHandler = BlockRef->u1.Versions.u_v4.v4c->WTransferDataHandler;
         break;
 
-    case 5: //17763 .. 18362
-        OpenBlock->ProtocolNextOpen = g_OpenBlock.u1.Versions.u_v5.v5c->ProtocolNextOpen;
-        OpenBlock->AllocateSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v5.v5c->AllocateSharedMemoryContext;
-        OpenBlock->BindDeviceName = g_OpenBlock.u1.Versions.u_v5.v5c->BindDeviceName;
-        OpenBlock->CmActivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5->CmActivateVcCompleteHandler;
-        OpenBlock->CmDeactivateVcCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5->CmDeactivateVcCompleteHandler;
-        OpenBlock->CoCreateVcHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoCreateVcHandler;
-        OpenBlock->CoDeleteVcHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoDeleteVcHandler;
-        OpenBlock->CoOidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoOidRequestCompleteHandler;
-        OpenBlock->CoOidRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoOidRequestHandler;
-        OpenBlock->CoRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoRequestCompleteHandler;
-        OpenBlock->CoRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5->CoRequestHandler;
-        OpenBlock->DirectOidRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5c->DirectOidRequestHandler;
-        OpenBlock->FreeSharedMemoryHandler = g_OpenBlock.u1.Versions.u_v5.v5c->FreeSharedMemoryHandler;
-        OpenBlock->MiniportCoCreateVcHandler = g_OpenBlock.u1.Versions.u_v5.v5->MiniportCoCreateVcHandler;
-        OpenBlock->MiniportCoOidRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5->MiniportCoOidRequestHandler;
-        OpenBlock->MiniportCoRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5->MiniportCoRequestHandler;
-        OpenBlock->Ndis5WanSendHandler = g_OpenBlock.u1.Versions.u_v5.v5c->Ndis5WanSendHandler;
-        OpenBlock->NextReturnNetBufferListsHandler = g_OpenBlock.u1.Versions.u_v5.v5c->NextReturnNetBufferListsHandler;
-        OpenBlock->NextSendHandler = g_OpenBlock.u1.Versions.u_v5.v5c->NextSendHandler;
-        OpenBlock->OidRequestCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->OidRequestCompleteHandler;
-        OpenBlock->OidRequestHandler = g_OpenBlock.u1.Versions.u_v5.v5c->OidRequestCompleteHandler;
-        OpenBlock->ProtSendCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->ProtSendCompleteHandler;
-        OpenBlock->ProtSendNetBufferListsComplete = g_OpenBlock.u1.Versions.u_v5.v5c->ProtSendNetBufferListsComplete;
-        OpenBlock->ReceiveCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->ReceiveCompleteHandler;
-        OpenBlock->ReceiveHandler = g_OpenBlock.u1.Versions.u_v5.v5c->ReceiveHandler;
-        OpenBlock->ReceiveNetBufferLists = g_OpenBlock.u1.Versions.u_v5.v5c->ReceiveNetBufferLists;
-        OpenBlock->ReceivePacketHandler = g_OpenBlock.u1.Versions.u_v5.v5c->ReceivePacketHandler;
-        OpenBlock->RequestCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->RequestCompleteHandler;
-        OpenBlock->RequestHandler = g_OpenBlock.u1.Versions.u_v5.v5c->RequestHandler;
-        OpenBlock->ResetCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->ResetCompleteHandler;
-        OpenBlock->RootDeviceName = g_OpenBlock.u1.Versions.u_v5.v5c->RootDeviceName;
-        OpenBlock->SavedCancelSendPacketsHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SavedCancelSendPacketsHandler;
-        OpenBlock->SavedSendHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SavedSendHandler;
-        OpenBlock->SavedSendPacketsHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SavedSendPacketsHandler;
-        OpenBlock->SendCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SendCompleteHandler;
-        OpenBlock->SendHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SendHandler;
-        OpenBlock->SendPacketsHandler = g_OpenBlock.u1.Versions.u_v5.v5c->SendPacketsHandler;
-        OpenBlock->TransferDataCompleteHandler = g_OpenBlock.u1.Versions.u_v5.v5c->TransferDataCompleteHandler;
-        OpenBlock->TransferDataHandler = g_OpenBlock.u1.Versions.u_v5.v5c->TransferDataHandler;
-        OpenBlock->WanReceiveHandler = g_OpenBlock.u1.Versions.u_v5.v5c->WanReceiveHandler;
+    case 5: //17763..18362
+        OpenBlock->ProtocolNextOpen = BlockRef->u1.Versions.u_v5.v5c->ProtocolNextOpen;
+        OpenBlock->BindDeviceName = BlockRef->u1.Versions.u_v5.v5c->BindDeviceName;
+        OpenBlock->RootDeviceName = BlockRef->u1.Versions.u_v5.v5c->RootDeviceName;
+
+        OpenBlock->AllocateSharedMemoryHandler = BlockRef->u1.Versions.u_v5.v5c->AllocateSharedMemoryHandler;
+        OpenBlock->CancelSendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->CancelSendPacketsHandler;
+        OpenBlock->CmActivateVcCompleteHandler = BlockRef->u1.Versions.u_v5.v5->CmActivateVcCompleteHandler;
+        OpenBlock->CmDeactivateVcCompleteHandler = BlockRef->u1.Versions.u_v5.v5->CmDeactivateVcCompleteHandler;
+        OpenBlock->CoCreateVcHandler = BlockRef->u1.Versions.u_v5.v5->CoCreateVcHandler;
+        OpenBlock->CoDeleteVcHandler = BlockRef->u1.Versions.u_v5.v5->CoDeleteVcHandler;
+        OpenBlock->CoOidRequestCompleteHandler = BlockRef->u1.Versions.u_v5.v5->CoOidRequestCompleteHandler;
+        OpenBlock->CoOidRequestHandler = BlockRef->u1.Versions.u_v5.v5->CoOidRequestHandler;
+        OpenBlock->CoRequestCompleteHandler = BlockRef->u1.Versions.u_v5.v5->CoRequestCompleteHandler;
+        OpenBlock->CoRequestHandler = BlockRef->u1.Versions.u_v5.v5->CoRequestHandler;
+        OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.u_v5.v5c->DirectOidRequestHandler;
+        OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.u_v5.v5c->FreeSharedMemoryHandler;
+        //        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.u_v5.v5->IndicateOffloadEventHandler;
+        //        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->InitiateOffloadCompleteHandler;
+        //        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->InvalidateOffloadCompleteHandler;
+        OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoCreateVcHandler;
+        OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoOidRequestHandler;
+        OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoRequestHandler;
+        OpenBlock->Ndis5WanSendHandler = BlockRef->u1.Versions.u_v5.v5c->Ndis5WanSendHandler;
+        OpenBlock->NextReturnNetBufferListsHandler = BlockRef->u1.Versions.u_v5.v5c->NextReturnNetBufferListsHandler;
+        OpenBlock->NextSendHandler = BlockRef->u1.Versions.u_v5.v5c->NextSendHandler;
+        OpenBlock->OidRequestCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->OidRequestCompleteHandler;
+        OpenBlock->OidRequestHandler = BlockRef->u1.Versions.u_v5.v5c->OidRequestHandler;
+        OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->ProtSendCompleteHandler;
+        OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.u_v5.v5c->ProtSendNetBufferListsComplete;
+        //        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->QueryOffloadCompleteHandler;
+        OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->ReceiveCompleteHandler;
+        OpenBlock->ReceiveHandler = BlockRef->u1.Versions.u_v5.v5c->ReceiveHandler;
+        OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.u_v5.v5c->ReceiveNetBufferLists;
+        OpenBlock->ReceivePacketHandler = BlockRef->u1.Versions.u_v5.v5c->ReceivePacketHandler;
+        OpenBlock->RequestCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->RequestCompleteHandler;
+        OpenBlock->RequestHandler = BlockRef->u1.Versions.u_v5.v5c->RequestHandler;
+        OpenBlock->ResetCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->ResetCompleteHandler;
+        OpenBlock->ResetHandler = BlockRef->u1.Versions.u_v5.v5c->ResetHandler;
+        OpenBlock->SavedCancelSendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->SavedCancelSendPacketsHandler;
+        OpenBlock->SavedSendHandler = BlockRef->u1.Versions.u_v5.v5c->SavedSendHandler;
+        OpenBlock->SavedSendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->SavedSendPacketsHandler;
+        OpenBlock->SendCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->SendCompleteHandler;
+        OpenBlock->SendHandler = BlockRef->u1.Versions.u_v5.v5c->SendHandler;
+        OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->SendPacketsHandler;
+        OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->StatusCompleteHandler;
+        OpenBlock->StatusHandler = BlockRef->u1.Versions.u_v5.v5c->StatusHandler;
+        //      OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadDisconnectCompleteHandler;
+       //       OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadEventHandler;
+       //       OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadForwardCompleteHandler;
+       //       OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadReceiveCompleteHandler;
+       //       OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadReceiveIndicateHandler;
+       //       OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadSendCompleteHandler;
+       //       OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TerminateOffloadCompleteHandler;
+        OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->TransferDataCompleteHandler;
+        OpenBlock->TransferDataHandler = BlockRef->u1.Versions.u_v5.v5c->TransferDataHandler;
+        //        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5->UpdateOffloadCompleteHandler;
+        OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.u_v5.v5c->WanReceiveHandler;
+        OpenBlock->WSendHandler = BlockRef->u1.Versions.u_v5.v5c->WSendHandler;
+        OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->WSendPacketsHandler;
+        OpenBlock->WTransferDataHandler = BlockRef->u1.Versions.u_v5.v5c->WTransferDataHandler;
         break;
 
     default:
@@ -1083,4 +1094,78 @@ BOOL CreateCompatibleOpenBlock(
     }
 
     return TRUE;
+}
+
+/*
+* ReadAndConvertProtocolBlock
+*
+* Purpose:
+*
+* Read protocol block from kernel and convert it to compatible form.
+*
+*/
+BOOL ReadAndConvertProtocolBlock(
+    _In_ ULONG_PTR ObjectAddress,
+    _Inout_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock,
+    _Out_opt_ PULONG ObjectVersion
+)
+{
+    BOOL Result = FALSE;
+    ULONG objectVersion;
+    ULONG objectSize;
+    PVOID objectPtr;
+
+    PROTOCOL_BLOCK_VERSIONS ProtocolRef;
+
+    objectPtr = DumpProtocolBlockVersionAware(ObjectAddress, &objectSize, &objectVersion);
+    if (objectPtr == NULL)
+        return FALSE;
+
+    ProtocolRef.u1.Ref = objectPtr;
+    Result = CreateCompatibleProtocolBlock(objectVersion, &ProtocolRef, ProtoBlock);
+
+    if (ObjectVersion) {
+        *ObjectVersion = objectVersion;
+    }
+
+    HeapMemoryFree(objectPtr);
+
+    return Result;
+}
+
+/*
+* ReadAndConvertOpenBlock
+*
+* Purpose:
+*
+* Read open block from kernel and convert it to compatible form.
+*
+*/
+BOOL ReadAndConvertOpenBlock(
+    _In_ ULONG_PTR ObjectAddress,
+    _Inout_ NDIS_OPEN_BLOCK_COMPATIBLE *OpenBlock,
+    _Out_opt_ PULONG ObjectVersion)
+{
+    BOOL Result = FALSE;
+    ULONG objectVersion;
+    ULONG objectSize;
+    PVOID objectPtr;
+
+    OPEN_BLOCK_VERSIONS BlockRef;
+
+    objectPtr = DumpOpenBlockVersionAware(ObjectAddress, &objectSize, &objectVersion);
+    if (objectPtr == NULL) {
+        return FALSE;
+    }
+
+    BlockRef.u1.Ref = objectPtr;
+    Result = CreateCompatibleOpenBlock(objectVersion, &BlockRef, OpenBlock);
+
+    if (ObjectVersion) {
+        *ObjectVersion = objectVersion;
+    }
+
+    HeapMemoryFree(objectPtr);
+
+    return Result;
 }

@@ -39,7 +39,7 @@
     <ClCompile Include="query.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\WinObjEx64\minirtl\strtou64.c">
+    <ClCompile Include="..\..\WinObjEx64\minirtl\hextou64.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

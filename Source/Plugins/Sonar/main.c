@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2019
+*  DATE:        01 July 2019
 *
 *  WinObjEx64 Sonar plugin.
 *
@@ -59,34 +59,35 @@ HTREEITEM TreeListAddItem(
     return TreeList_InsertTreeItem(TreeList, &tvitem, si);
 }
 
+/*
+* ListOpenQueue
+*
+* Purpose:
+*
+* Output NDIS_OPEN_BLOCK queue to the treelist.
+*
+*/
 VOID ListOpenQueue(
     _In_ HTREEITEM hTreeRootItem,
     _In_ ULONG_PTR OpenQueueAddress
 )
 {
-    ULONG   ObjectSize, ObjectVersion;
-    PVOID   ObjectPtr;
-       
     ULONG_PTR ProtocolNextOpen = OpenQueueAddress;
 
     NDIS_OPEN_BLOCK_COMPATIBLE OpenBlock;
+
     WCHAR szBuffer[100];
     TL_SUBITEMS_FIXED subitems;
 
     do {
-        DbgPrint("ProtocolNextOpen %llx\r\n", ProtocolNextOpen);
-
-        ObjectPtr = DumpOpenBlockVersionAware(ProtocolNextOpen, &ObjectSize, &ObjectVersion);
-        if (ObjectPtr == NULL) {
-            SHOW_ERROR(TEXT("Could not read open block, abort"));
+        RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
+        if (!ReadAndConvertOpenBlock(ProtocolNextOpen, &OpenBlock, NULL)) {
+            SHOW_ERROR(TEXT("Could not read open block, abort."));
             return;
         }
-        g_OpenBlock.u1.Ref = ObjectPtr;
-        RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
-        CreateCompatibleOpenBlock(ObjectVersion, &OpenBlock);
 
         RtlSecureZeroMemory(&subitems, sizeof(subitems));
-        subitems.UserParam = (PVOID)NdisOpenBlock;
+        subitems.UserParam = (PVOID)NdisObjectTypeOpenBlock;
         StringCchPrintf(szBuffer, 32, TEXT("0x%llX"), ProtocolNextOpen);
         subitems.Count = 2;
         subitems.Text[0] = szBuffer;
@@ -103,12 +104,17 @@ VOID ListOpenQueue(
 
         ProtocolNextOpen = (ULONG_PTR)OpenBlock.ProtocolNextOpen;
 
-        DbgPrint("ProtocolNextOpen %llx\r\n", ProtocolNextOpen);
-        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
-
     } while (ProtocolNextOpen != 0);
 }
 
+/*
+* AddProtocolToTreeList
+*
+* Purpose:
+*
+* Output NDIS_PROTOCOL_BLOCK to the treelist.
+*
+*/
 VOID AddProtocolToTreeList(
     _In_ NDIS_PROTOCOL_BLOCK_COMPATIBLE *ProtoBlock,
     _In_ ULONG_PTR ProtocolAddress
@@ -131,19 +137,15 @@ VOID AddProtocolToTreeList(
 
     if (lpProtocolName) {
         RtlSecureZeroMemory(&subitems, sizeof(subitems));
-        subitems.UserParam = (PVOID)NdisProtocolBlock;
+        subitems.UserParam = (PVOID)NdisObjectTypeProtocolBlock;
         StringCchPrintf(szBuffer, 32, TEXT("0x%llX"), ProtocolAddress);
         subitems.Count = 2;
         subitems.Text[0] = szBuffer;
 
-        DbgPrint("ImageName, Buffer %llx, Length = %lu, MaximumLength = %lu\r\n", ProtoBlock->ImageName.Buffer,
-            ProtoBlock->ImageName.Length,
-            ProtoBlock->ImageName.MaximumLength);
-
         if (ProtoBlock->ImageName.Length == 0) {
             subitems.Text[1] = TEXT("");
         }
-        else {         
+        else {
 
             usTemp = &ProtoBlock->ImageName;
             lpImageName = (PWCHAR)DumpUnicodeString((ULONG_PTR)usTemp->Buffer,
@@ -169,14 +171,14 @@ VOID AddProtocolToTreeList(
             &subitems);
 
         if (lpImageName)
-            HeapFree(g_ctx.PluginHeap, 0, lpImageName);
+            HeapMemoryFree(lpImageName);
 
 
         if ((ULONG_PTR)ProtoBlock->OpenQueue > g_ctx.ParamBlock.SystemRangeStart) {
             ListOpenQueue(hTreeItem, (ULONG_PTR)ProtoBlock->OpenQueue);
         }
 
-        HeapFree(g_ctx.PluginHeap, 0, lpProtocolName);
+        HeapMemoryFree(lpProtocolName);
     }
 
 }
@@ -189,17 +191,21 @@ VOID AddProtocolToTreeList(
 * Query ndisProtocolList and output it.
 *
 */
-VOID ListProtocols()
+VOID ListProtocols(
+    _In_ BOOL bRefresh
+)
 {
     ULONG NextProtocolOffset;
-    ULONG ObjectVersion;
-    ULONG ObjectSize;
-    PVOID ObjectPtr;
 
     NDIS_PROTOCOL_BLOCK_COMPATIBLE ProtoBlock;
 
     ULONG_PTR ndisProtocolList = QueryProtocolList();
     ULONG_PTR ProtocolBlockAddress = 0;
+
+    if (bRefresh) {
+        ListView_DeleteAllItems(g_ctx.ListView);
+        TreeList_ClearTree(g_ctx.TreeList);
+    }
 
     if (ndisProtocolList == 0) {
         SHOW_ERROR(TEXT("Could not query ndisProtocolList variable address, abort."));
@@ -211,39 +217,27 @@ VOID ListProtocols()
     //
     NextProtocolOffset = GetNextProtocolOffset(g_ctx.ParamBlock.osver.dwBuildNumber);
     ProtocolBlockAddress = (ULONG_PTR)ndisProtocolList - NextProtocolOffset;
-
-    ObjectPtr = DumpProtocolBlockVersionAware(ProtocolBlockAddress, &ObjectSize, &ObjectVersion);
-    if (ObjectPtr == NULL) {
-        SHOW_ERROR(TEXT("Could not read protocol block, abort"));
+    RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
+    if (!ReadAndConvertProtocolBlock(ProtocolBlockAddress, &ProtoBlock, NULL)) {
+        SHOW_ERROR(TEXT("Could not read protocol block, abort."));
         return;
     }
-    g_ProtocolBlock.u1.Ref = ObjectPtr;
 
-    ProtocolBlockAddress = GetNextProtocol(ObjectVersion);
-
-    HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
+    ProtocolBlockAddress = (ULONG_PTR)ProtoBlock.NextProtocol;
 
     //
     // Walk protocol list.
     //
     do {
-
-        ObjectPtr = DumpProtocolBlockVersionAware(ProtocolBlockAddress, &ObjectSize, &ObjectVersion);
-        if (ObjectPtr == NULL) {
-            SHOW_ERROR(TEXT("Could not read protocol block, abort"));
-            break;
-        }
-        g_ProtocolBlock.u1.Ref = ObjectPtr;
-
         RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
-        CreateCompatibleProtocolBlock(ObjectVersion, &ProtoBlock);
+        if (!ReadAndConvertProtocolBlock(ProtocolBlockAddress, &ProtoBlock, NULL)) {
+            SHOW_ERROR(TEXT("Could not read protocol block, abort."));
+            return;
+        }
 
-        DbgPrint("ProtocolBlockAddress %llx OpenQueueAddress %llx\r\n", ProtocolBlockAddress, (ULONG_PTR)ProtoBlock.OpenQueue);
         AddProtocolToTreeList(&ProtoBlock, ProtocolBlockAddress);
 
         ProtocolBlockAddress = (ULONG_PTR)ProtoBlock.NextProtocol;
-
-        HeapFree(g_ctx.PluginHeap, 0, ObjectPtr);
 
     } while (ProtocolBlockAddress != 0);
 }
@@ -327,6 +321,318 @@ INT CALLBACK ListViewCompareFunc(
 }
 
 /*
+* GetNdisObjectInformationFromList
+*
+* Purpose:
+*
+* Return NDIS object type and address (converted from text) from treelist item.
+*
+*/
+BOOLEAN GetNdisObjectInformationFromList(
+    _In_ HTREEITEM hTreeItem,
+    _Out_ NDIS_OBJECT_TYPE *NdisObjectType,
+    _Out_ PULONG_PTR ObjectAddress
+)
+{
+    TVITEMEX itemex;
+    PWCHAR lpAddressField;
+    TL_SUBITEMS_FIXED *subitems = NULL;
+
+    *NdisObjectType = NdisObjectTypeInvalid;
+    *ObjectAddress = 0ull;
+
+    SIZE_T Length;
+
+    RtlSecureZeroMemory(&itemex, sizeof(itemex));
+
+    itemex.hItem = hTreeItem;
+    if (TreeList_GetTreeItem(g_ctx.TreeList, &itemex, &subitems))
+        if (subitems) {
+            if (subitems->Text[0]) {
+                *NdisObjectType = (NDIS_OBJECT_TYPE)(ULONG_PTR)subitems->UserParam;
+                Length = _strlen(subitems->Text[0]);
+                if (Length > 2) {
+                    lpAddressField = subitems->Text[0];
+                    *ObjectAddress = hextou64(&lpAddressField[2]);
+                }
+                return TRUE;
+            }
+        }
+
+    return FALSE;
+}
+
+/*
+* ConvertToUnicode
+*
+* Purpose:
+*
+* Convert module name to unicode.
+*
+* N.B.
+* If function succeeded - use RtlFreeUnicodeString to release allocated unicode string.
+*
+*/
+NTSTATUS ConvertToUnicode(
+    _In_ LPSTR AnsiString,
+    _Out_ PUNICODE_STRING UnicodeString)
+{
+    ANSI_STRING ansiString;
+
+    RtlInitString(&ansiString, AnsiString);
+    return RtlAnsiStringToUnicodeString(UnicodeString, &ansiString, TRUE);
+}
+
+/*
+* xxxDumpProtocolBlock
+*
+* Purpose:
+*
+* Add item to list view.
+*
+*/
+VOID xxxDumpProtocolBlock(
+    _In_ LPWSTR lpszItem,
+    _In_ LPWSTR lpszValue,
+    _In_ LPWSTR lpszAdditionalInfo
+)
+{
+    INT itemIndex;
+    LVITEM lvItem;
+
+    RtlSecureZeroMemory(&lvItem, sizeof(lvItem));
+    lvItem.mask = LVIF_TEXT | LVIF_IMAGE;
+    lvItem.iSubItem = 0;
+    lvItem.iItem = MAXINT;
+    lvItem.iImage = I_IMAGENONE;
+    lvItem.pszText = lpszItem;
+    itemIndex = ListView_InsertItem(g_ctx.ListView, &lvItem);
+
+    lvItem.pszText = lpszValue;
+    lvItem.iSubItem = 1;
+    lvItem.iItem = itemIndex;
+    ListView_SetItem(g_ctx.ListView, &lvItem);
+
+    if (lpszAdditionalInfo) {
+        lvItem.pszText = lpszAdditionalInfo;
+    }
+    else {
+        lvItem.pszText = TEXT("");
+    }
+    lvItem.iSubItem = 2;
+    lvItem.iItem = itemIndex;
+    ListView_SetItem(g_ctx.ListView, &lvItem);
+}
+
+/*
+* DumpHandlers
+*
+* Purpose:
+*
+* Output handlers with associated names.
+*
+*/
+VOID DumpHandlers(
+    _In_ PVOID *Handlers,
+    _In_ UINT Count,
+    _In_ LPWSTR *Names,
+    RTL_PROCESS_MODULES *pModulesList
+)
+{
+    BOOL ConvertNeedFree = FALSE;
+    ULONG moduleIndex;
+    PWSTR pAssociatedModule = NULL;
+
+    WCHAR szBuffer[64];
+    UNICODE_STRING usConvert;
+
+    PRTL_PROCESS_MODULE_INFORMATION pModule;
+
+    UINT i;
+    for (i = 0; i < Count; i++) {
+        if ((ULONG_PTR)Handlers[i] > g_ctx.ParamBlock.SystemRangeStart) {
+
+            StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), Handlers[i]);
+
+            moduleIndex = g_ctx.ParamBlock.FindModuleEntryByAddress(pModulesList, Handlers[i]);
+            if ((moduleIndex != 0xFFFFFFFF) && (moduleIndex < pModulesList->NumberOfModules)) {
+
+                pModule = &pModulesList->Modules[moduleIndex];
+                if (NT_SUCCESS(ConvertToUnicode((LPSTR)&pModule->FullPathName, &usConvert))) {
+                    pAssociatedModule = usConvert.Buffer;
+                    ConvertNeedFree = TRUE;
+                }
+                else {
+                    pAssociatedModule = TEXT("Unknown Module");
+                }
+
+            }
+            else {
+                pAssociatedModule = TEXT(""); //could be any garbage pointer.
+            }
+
+            xxxDumpProtocolBlock(Names[i], szBuffer, pAssociatedModule);
+
+            if (ConvertNeedFree) {
+                RtlFreeUnicodeString(&usConvert);
+                ConvertNeedFree = FALSE;
+            }
+        }
+
+    }
+}
+
+/*
+* DumpProtocolInfo
+*
+* Purpose:
+*
+* Read NDIS_PROTOCOL_BLOCK from memory and output it information.
+*
+*/
+VOID DumpProtocolInfo(
+    _In_ ULONG_PTR ProtocolAddress
+)
+{
+    PWCHAR DumpedString;
+    NDIS_PROTOCOL_BLOCK_COMPATIBLE ProtoBlock;
+    WCHAR szBuffer[64];
+
+    RTL_PROCESS_MODULES *pModulesList = NULL;
+
+    PVOID ProtocolHandlers[_countof(g_lpszProtocolBlockHandlers)];
+
+    ListView_DeleteAllItems(g_ctx.ListView);
+
+    pModulesList = g_ctx.ParamBlock.GetSystemInfoEx(SystemModuleInformation, NULL, HeapMemoryAlloc, HeapMemoryFree);
+    if (pModulesList == NULL)
+        return;
+
+    DbgPrint("NDIS_PROTOCOL_BLOCK %llX\r\n", ProtocolAddress);
+
+    //
+    // Dump protocol block from kernel.
+    //
+    RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
+    if (!ReadAndConvertProtocolBlock(ProtocolAddress, &ProtoBlock, NULL)) {
+        HeapMemoryFree(pModulesList);
+        return;
+    }
+
+    //
+    // Output protocol version.
+    //
+    StringCchPrintf(szBuffer, 64, TEXT("%lu.%lu"), ProtoBlock.MajorNdisVersion, ProtoBlock.MinorNdisVersion);
+    xxxDumpProtocolBlock(TEXT("NDIS Version"), szBuffer, NULL);
+
+    //
+    // Output driver version if set.
+    //
+    if (ProtoBlock.MajorDriverVersion) {
+        StringCchPrintf(szBuffer, 64, TEXT("%lu.%lu"), ProtoBlock.MajorDriverVersion, ProtoBlock.MinorDriverVersion);
+        xxxDumpProtocolBlock(TEXT("Driver Version"), szBuffer, NULL);
+    }
+
+    //
+    // Read and output BindDeviceName UNICODE_STRING.
+    //
+    DumpedString = DumpUnicodeString((ULONG_PTR)ProtoBlock.BindDeviceName, 0, 0, TRUE);
+    if (DumpedString) {
+        StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), (ULONG_PTR)ProtoBlock.BindDeviceName);
+        xxxDumpProtocolBlock(TEXT("BindDeviceName"), szBuffer, DumpedString);
+        HeapMemoryFree(DumpedString);
+    }
+
+    //
+    // Read and output RootDeviceName UNICODE_STRING.
+    //
+    DumpedString = DumpUnicodeString((ULONG_PTR)ProtoBlock.RootDeviceName, 0, 0, TRUE);
+    if (DumpedString) {
+        StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), (ULONG_PTR)ProtoBlock.RootDeviceName);
+        xxxDumpProtocolBlock(TEXT("RootDeviceName"), szBuffer, DumpedString);
+        HeapMemoryFree(DumpedString);
+    }
+
+    //
+    // List Handlers.
+    //
+    RtlCopyMemory(ProtocolHandlers, &ProtoBlock.BindAdapterHandlerEx, sizeof(ProtocolHandlers));
+
+    DumpHandlers(ProtocolHandlers, _countof(ProtocolHandlers), g_lpszProtocolBlockHandlers, pModulesList);
+
+    HeapMemoryFree(pModulesList);
+}
+
+/*
+* DumpProtocolInfo
+*
+* Purpose:
+*
+* Read NDIS_OPEN_BLOCK from memory and output it information.
+*
+*/
+VOID DumpOpenBlockInfo(
+    _In_ ULONG_PTR OpenBlockAddress
+)
+{
+    PWCHAR DumpedString;
+    NDIS_OPEN_BLOCK_COMPATIBLE OpenBlock;
+    WCHAR szBuffer[64];
+
+    RTL_PROCESS_MODULES *pModulesList = NULL;
+
+    PVOID OpenBlockHandlers[_countof(g_lpszOpenBlockHandlers)];
+
+    ListView_DeleteAllItems(g_ctx.ListView);
+
+    DbgPrint("NDIS_OPEN_BLOCK %llX\r\n", OpenBlockAddress);
+
+    //
+    // Allocate loaded modules list.
+    //
+    pModulesList = g_ctx.ParamBlock.GetSystemInfoEx(SystemModuleInformation, NULL, HeapMemoryAlloc, HeapMemoryFree);
+    if (pModulesList == NULL)
+        return;
+
+    //
+    // Dump open block from kernel.
+    //
+    RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
+    if (!ReadAndConvertOpenBlock(OpenBlockAddress, &OpenBlock, NULL)) {
+        HeapMemoryFree(pModulesList);
+        return;
+    }
+
+    //
+    // Read and output BindDeviceName UNICODE_STRING.
+    //
+    DumpedString = DumpUnicodeString((ULONG_PTR)OpenBlock.BindDeviceName, 0, 0, TRUE);
+    if (DumpedString) {
+        StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), (ULONG_PTR)OpenBlock.BindDeviceName);
+        xxxDumpProtocolBlock(TEXT("BindDeviceName"), szBuffer, DumpedString);
+        HeapMemoryFree(DumpedString);
+    }
+
+    //
+    // Read and output RootDeviceName UNICODE_STRING.
+    //
+    DumpedString = DumpUnicodeString((ULONG_PTR)OpenBlock.RootDeviceName, 0, 0, TRUE);
+    if (DumpedString) {
+        StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), (ULONG_PTR)OpenBlock.RootDeviceName);
+        xxxDumpProtocolBlock(TEXT("RootDeviceName"), szBuffer, DumpedString);
+        HeapMemoryFree(DumpedString);
+    }
+
+    //
+    // List Handlers.
+    //
+    RtlCopyMemory(OpenBlockHandlers, &OpenBlock.NextSendHandler, sizeof(OpenBlockHandlers));
+
+    DumpHandlers(OpenBlockHandlers, _countof(OpenBlockHandlers), g_lpszOpenBlockHandlers, pModulesList);
+    HeapMemoryFree(pModulesList);
+}
+
+/*
 * OnNotify
 *
 * Purpose:
@@ -335,46 +641,93 @@ INT CALLBACK ListViewCompareFunc(
 *
 */
 VOID OnNotify(
-    _In_ LPNMLISTVIEW nhdr)
+    _In_ HWND hwnd,
+    _In_ WPARAM wParam,
+    _In_ LPARAM lParam
+)
 {
-    INT i, SortColumn, ImageIndex;
-    LVCOLUMN col;
+    INT             i, SortColumn, ImageIndex;
+    ULONG_PTR       ObjectAddress;
+    HWND            TreeControl;
+    LVCOLUMN        col;
+    LPNMHDR         hdr = (LPNMHDR)lParam;
+    LPNMTREEVIEW    lpnmTreeView;
 
-    if (nhdr->hdr.hwndFrom != g_ctx.ListView)
-        return;
+    NDIS_OBJECT_TYPE NdisObjectType;
 
-    switch (nhdr->hdr.code) {
+    UNREFERENCED_PARAMETER(hwnd);
+    UNREFERENCED_PARAMETER(wParam);
 
-    case LVN_COLUMNCLICK:
-        DbgPrint("Column click\r\n");
-        g_ctx.bInverseSort = !g_ctx.bInverseSort;
-        SortColumn = ((NMLISTVIEW *)nhdr)->iSubItem;
+    TreeControl = (HWND)TreeList_GetTreeControlWindow(g_ctx.TreeList);
 
-        ListView_SortItemsEx(g_ctx.ListView, &ListViewCompareFunc, SortColumn);
+    if (hdr->hwndFrom == TreeControl) {
 
-        ImageIndex = ImageList_GetImageCount(g_ctx.ImageList);
-        if (g_ctx.bInverseSort)
-            ImageIndex -= 2;
-        else
-            ImageIndex -= 1;
+        switch (hdr->code) {
 
-        RtlSecureZeroMemory(&col, sizeof(col));
-        col.mask = LVCF_IMAGE;
+        case TVN_SELCHANGED:
 
-        for (i = 0; i < g_ctx.lvColumnCount; i++) {
-            if (i == SortColumn) {
-                col.iImage = ImageIndex;
+            lpnmTreeView = (LPNMTREEVIEW)lParam;
+            if (lpnmTreeView) {
+                ObjectAddress = 0ull;
+                if (GetNdisObjectInformationFromList(lpnmTreeView->itemNew.hItem,
+                    &NdisObjectType,
+                    &ObjectAddress))
+                {
+                    switch (NdisObjectType) {
+                    case NdisObjectTypeProtocolBlock:
+                        DumpProtocolInfo(ObjectAddress);
+                        break;
+                    case NdisObjectTypeOpenBlock:
+                        DumpOpenBlockInfo(ObjectAddress);
+                        break;
+                    default:
+                        break;
+
+                    }
+                }
             }
-            else {
-                col.iImage = I_IMAGENONE;
-            }
-            ListView_SetColumn(g_ctx.ListView, i, &col);
+            break;
+
+        default:
+            break;
         }
 
-        break;
+    }
+    else if (hdr->hwndFrom == g_ctx.ListView) {
 
-    default:
-        break;
+        switch (hdr->code) {
+
+        case LVN_COLUMNCLICK:
+            g_ctx.bInverseSort = !g_ctx.bInverseSort;
+            SortColumn = ((NMLISTVIEW *)lParam)->iSubItem;
+
+            ListView_SortItemsEx(g_ctx.ListView, &ListViewCompareFunc, SortColumn);
+
+            ImageIndex = ImageList_GetImageCount(g_ctx.ImageList);
+            if (g_ctx.bInverseSort)
+                ImageIndex -= 2;
+            else
+                ImageIndex -= 1;
+
+            RtlSecureZeroMemory(&col, sizeof(col));
+            col.mask = LVCF_IMAGE;
+
+            for (i = 0; i < g_ctx.lvColumnCount; i++) {
+                if (i == SortColumn) {
+                    col.iImage = ImageIndex;
+                }
+                else {
+                    col.iImage = I_IMAGENONE;
+                }
+                ListView_SetColumn(g_ctx.ListView, i, &col);
+            }
+
+            break;
+
+        default:
+            break;
+        }
+
     }
 }
 
@@ -394,7 +747,6 @@ LRESULT CALLBACK MainWindowProc(
 )
 {
     INT dy;
-    LPNMLISTVIEW nhdr = (LPNMLISTVIEW)lParam;
 
     switch (uMsg) {
 
@@ -452,10 +804,36 @@ LRESULT CALLBACK MainWindowProc(
         break;
 
     case WM_NOTIFY:
-        OnNotify(nhdr);
+        OnNotify(hwnd, wParam, lParam);
         break;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+/*
+* FreeGlobalResources
+*
+* Purpose:
+*
+* Plugin memory deallocation routine.
+*
+*/
+VOID FreeGlobalResources()
+{
+    if (g_ctx.ClassAtom) {
+        UnregisterClass(MAKEINTATOM(g_ctx.ClassAtom), g_ThisDLL);
+        g_ctx.ClassAtom = 0;
+    }
+
+    if (g_ctx.ImageList) {
+        ImageList_Destroy(g_ctx.ImageList);
+        g_ctx.ImageList = 0;
+    }
+
+    if (g_ctx.PluginHeap) {
+        HeapDestroy(g_ctx.PluginHeap);
+        g_ctx.PluginHeap = NULL;
+    }
 }
 
 /*
@@ -613,7 +991,7 @@ DWORD WINAPI PluginThread(
         RtlSecureZeroMemory(&col, sizeof(col));
         col.mask = LVCF_TEXT | LVCF_SUBITEM | LVCF_FMT | LVCF_WIDTH | LVCF_ORDER | LVCF_IMAGE;
         col.iSubItem++;
-        col.pszText = TEXT("Value");
+        col.pszText = TEXT("Item");
         col.fmt = LVCFMT_LEFT | LVCFMT_BITMAP_ON_RIGHT;
         col.cx = 300;
         if (g_ctx.ImageList) {
@@ -626,16 +1004,24 @@ DWORD WINAPI PluginThread(
 
         col.fmt = LVCFMT_LEFT;
         col.iSubItem++;
-        col.pszText = TEXT("Address");
+        col.pszText = TEXT("Value");
         col.iOrder++;
-        col.cx = 130;
+        col.cx = 300;
+        col.iImage = I_IMAGENONE;
+        ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
+
+        col.fmt = LVCFMT_LEFT;
+        col.iSubItem++;
+        col.pszText = TEXT("Additional Info");
+        col.iOrder++;
+        col.cx = 300;
         col.iImage = I_IMAGENONE;
         ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
 
         //
         // Remember column count.
         //
-        g_ctx.lvColumnCount = 2;
+        g_ctx.lvColumnCount = 3;
 
         //
         // Init treelist.
@@ -663,7 +1049,9 @@ DWORD WINAPI PluginThread(
 
         OnResize(MainWindow);
 
-        ListProtocols();
+        ListProtocols(FALSE);
+
+        TreeView_SelectItem(g_ctx.TreeList, TreeView_GetRoot(g_ctx.TreeList));
         SetFocus(g_ctx.TreeList);
 
         do {
@@ -682,16 +1070,11 @@ DWORD WINAPI PluginThread(
 
     } while (FALSE);
 
-    if (g_ctx.ClassAtom)
-        UnregisterClass(MAKEINTATOM(g_ctx.ClassAtom), g_ThisDLL);
-
-    if (g_ctx.ImageList)
-        ImageList_Destroy(g_ctx.ImageList);
-
-    InterlockedExchange((PLONG)&g_PluginQuit, 1);
+    FreeGlobalResources();
 
     ExitThread(0);
 }
+
 
 /*
 * StartPlugin
@@ -711,7 +1094,7 @@ NTSTATUS CALLBACK StartPlugin(
 
     g_ctx.PluginHeap = HeapCreate(0, 0, 0);
     if (g_ctx.PluginHeap == NULL)
-        return STATUS_HEAP_CORRUPTION;
+        return STATUS_MEMORY_NOT_ALLOCATED;
 
     HeapSetInformation(g_ctx.PluginHeap, HeapEnableTerminationOnCorruption, NULL, 0);
 
@@ -747,7 +1130,7 @@ void CALLBACK StopPlugin(
         CloseHandle(g_ctx.WorkerThread);
         g_ctx.WorkerThread = NULL;
 
-        HeapDestroy(g_ctx.PluginHeap);
+        FreeGlobalResources();
     }
 }
 
@@ -776,7 +1159,7 @@ BOOLEAN CALLBACK PluginInit(
         PluginData->StopPlugin = (pfnStopPlugin)&StopPlugin;
 
         //
-        // Setup permisions.
+        // Setup permissions.
         //
         PluginData->NeedAdmin = TRUE;
         PluginData->SupportWine = FALSE;
