@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        30 June 2019
+*  DATE:        03 July 2019
 *
 *  Common header file for the NDIS related definitions/structures.
 *
@@ -264,6 +264,14 @@ typedef struct _NDIS_PM_PARAMETERS
     ULONG              MediaSpecificWakeUpEvents;
 } NDIS_PM_PARAMETERS, *PNDIS_PM_PARAMETERS;
 
+typedef struct _NDIS_PM_PARAMETERS_7601
+{
+    /* 0x0000 */ NDIS_OBJECT_HEADER Header;
+    /* 0x0004 */ ULONG EnabledWoLPacketPatterns;
+    /* 0x0008 */ ULONG EnabledProtocolOffloads;
+    /* 0x000c */ ULONG WakeUpFlags;
+} NDIS_PM_PARAMETERS_7601, *PNDIS_PM_PARAMETERS_7601; /* size: 0x0010 */
+
 typedef enum _NDIS_OPEN_TRANSLATION_STATE
 {
     OpenDontXlate = 0,
@@ -319,7 +327,7 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
     /* 0x0041 */ UCHAR CallingFromNdis6Protocol;
     /* 0x0042 */ UCHAR Reserved3;
     /* 0x0043 */ UCHAR Reserved4;
-    /* 0x0044 */ long Padding_275;
+    /* 0x0044 */ ULONG Padding1;
     /* 0x0048 */ PVOID NextReturnNetBufferListsHandler;
     /* 0x0050 */ unsigned __int64 Reserved5;
     /* 0x0058 */ PVOID NextReturnNetBufferListsContext;
@@ -348,23 +356,23 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
     }; /* size: 0x0008 */
     /* 0x00d8 */ PVOID StatusCompleteHandler;
     /* 0x00e0 */ ULONG Flags;
-    /* 0x00e4 */ long References;
+    /* 0x00e4 */ LONG References;
     /* 0x00e8 */ unsigned __int64 SpinLock;
     /* 0x00f0 */ PVOID FilterHandle;
-    /* 0x00f8 */ unsigned int FrameTypeArraySize;
-    /* 0x00fc */ unsigned short FrameTypeArray[4];
+    /* 0x00f8 */ UINT FrameTypeArraySize;
+    /* 0x00fc */ USHORT FrameTypeArray[4];
     /* 0x0104 */ ULONG ProtocolOptions;
     /* 0x0108 */ ULONG CurrentLookahead;
-    /* 0x010c */ long Padding_276;
+    /* 0x010c */ ULONG Padding2;
     /* 0x0110 */ PVOID WSendHandler;
     /* 0x0118 */ PVOID WTransferDataHandler;
     /* 0x0120 */ PVOID WSendPacketsHandler;
     /* 0x0128 */ PVOID CancelSendPacketsHandler;
     /* 0x0130 */ ULONG WakeUpEnable;
-    /* 0x0134 */ NDIS_PM_PARAMETERS PMCurrentParameters;
-    /* 0x0144 */ long Padding_277;
+    /* 0x0134 */ NDIS_PM_PARAMETERS_7601 PMCurrentParameters;
+    /* 0x0144 */ ULONG Padding3;
     /* 0x0148 */ struct _KEVENT* CloseCompleteEvent;
-    /* 0x0150 */ QUEUED_CLOSE QC;
+    /* 0x0150 */ struct _QUEUED_CLOSE QC;
     /* 0x0178 */ long AfReferences;
     /* 0x017c */ long Padding_278;
     /* 0x0180 */ struct _NDIS_OPEN_BLOCK* NextGlobalOpen;
@@ -389,15 +397,15 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
         }; /* size: 0x001c */
         struct
         {
-            /* 0x01b8 */ ULONG FunctionalAddress;
-            /* 0x01bc */ ULONG OldFunctionalAddress;
-            /* 0x01c0 */ UCHAR UsingGroupAddress;
-            /* 0x01c1 */ UCHAR OldUsingGroupAddress;
+            /* 0x01b8 */ unsigned long FunctionalAddress;
+            /* 0x01bc */ unsigned long OldFunctionalAddress;
+            /* 0x01c0 */ unsigned char UsingGroupAddress;
+            /* 0x01c1 */ unsigned char OldUsingGroupAddress;
             /* 0x01c2 */ char Padding_281[2];
-            /* 0x01c4 */ ULONG FARefCount[32];
-            /* 0x0244 */ ULONG OldFARefCount[32];
+            /* 0x01c4 */ unsigned long FARefCount[32];
+            /* 0x0244 */ unsigned long OldFARefCount[32];
             /* 0x02c4 */ long Padding_282[3];
-            /* 0x02d0 */ UCHAR RSSParametersBuf[656];
+            /* 0x02d0 */ unsigned char RSSParametersBuf[656];
             /* 0x0560 */ struct _NDIS_RECEIVE_SCALE_PARAMETERS* NdisRSSParameters;
             /* 0x0568 */ SINGLE_LIST_ENTRY PatternList;
             /* 0x0570 */ SINGLE_LIST_ENTRY WOLPatternList;
@@ -427,9 +435,9 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
             /* 0x0610 */ PVOID TcpOffloadForwardCompleteHandler;
             /* 0x0618 */ PVOID TcpOffloadEventHandler;
             /* 0x0620 */ PVOID TcpOffloadReceiveIndicateHandler;
-            /* 0x0628 */ ULONG ProtocolMajorVersion;
+            /* 0x0628 */ unsigned long ProtocolMajorVersion;
             /* 0x062c */ long Padding_283;
-            /* 0x0630 */ PVOID *IfBlock;
+            /* 0x0630 */ void** IfBlock;
             /* 0x0638 */ NDIS_SPIN_LOCK PnPStateLock;
             /* 0x0648 */ NDIS_NDIS5_DRIVER_STATE PnPState;
             /* 0x064c */ NDIS_OPEN_TRANSLATION_STATE TranslationState;
@@ -445,14 +453,14 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
             /* 0x0698 */ struct _NDIS_OPEN_OFFLOAD* Offload;
             /* 0x06a0 */ struct _NDIS_STATUS_UNBIND_WORKITEM* StatusUnbindWorkItem;
             /* 0x06a8 */ unsigned __int64 DpcStartCycle;
-            /* 0x06b0 */ ULONG NumberOfNetBufferLists;
+            /* 0x06b0 */ unsigned long NumberOfNetBufferLists;
             /* 0x06b4 */ long Padding_285;
-            /* 0x06b8 */ UCHAR* ReceivedAPacket;
+            /* 0x06b8 */ unsigned char* ReceivedAPacket;
             /* 0x06c0 */ PVOID DirectOidRequestCompleteHandler;
             /* 0x06c8 */ PVOID DirectOidRequestHandler;
             /* 0x06d0 */ PVOID DirectOidRequestCompleteContext;
             /* 0x06d8 */ LIST_ENTRY ReceiveQueueList;
-            /* 0x06e8 */ ULONG NumReceiveQueues;
+            /* 0x06e8 */ unsigned long NumReceiveQueues;
             /* 0x06ec */ long Padding_286;
             /* 0x06f0 */ LIST_ENTRY SharedMemoryBlockList;
             /* 0x0700 */ PVOID AllocateSharedMemoryHandler;
@@ -472,7 +480,7 @@ typedef struct _NDIS_OPEN_BLOCK_7601 {
             /* 0x0778 */ LIST_ENTRY InactiveVcHead;
             /* 0x0788 */ long PendingAfNotifications;
             /* 0x078c */ long Padding_288;
-            /* 0x0790 */ KEVENT* AfNotifyCompleteEvent;
+            /* 0x0790 */ struct _KEVENT* AfNotifyCompleteEvent;
             /* 0x0798 */ PVOID MiniportCoOidRequestHandler;
             /* 0x07a0 */ PVOID CoOidRequestCompleteHandler;
             /* 0x07a8 */ PVOID CoOidRequestHandler;

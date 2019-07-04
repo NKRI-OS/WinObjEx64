@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        01 July 2019
+*  DATE:        03 July 2019
 *
 *  Query NDIS specific data.
 *
@@ -254,6 +254,7 @@ PVOID DumpProtocolBlockVersionAware(
     if (Version) *Version = 0;
 
     switch (g_ctx.ParamBlock.osver.dwBuildNumber) {
+    case 7600:
     case 7601:
         ObjectSize = sizeof(NDIS_PROTOCOL_BLOCK_7601);
         ObjectVersion = 1;
@@ -317,6 +318,7 @@ PVOID DumpOpenBlockVersionAware(
     if (Version) *Version = 0;
 
     switch (g_ctx.ParamBlock.osver.dwBuildNumber) {
+    case 7600:
     case 7601:
         ObjectSize = sizeof(NDIS_OPEN_BLOCK_7601);
         ObjectVersion = 1;
@@ -435,6 +437,7 @@ ULONG GetNextProtocolOffset(
 
     switch (WindowsVersion) {
 
+    case 7600:
     case 7601:
         Offset = FIELD_OFFSET(NDIS_PROTOCOL_BLOCK_7601, NextProtocol);
         break;
@@ -1048,9 +1051,6 @@ BOOL CreateCompatibleOpenBlock(
         OpenBlock->CoRequestHandler = BlockRef->u1.Versions.u_v5.v5->CoRequestHandler;
         OpenBlock->DirectOidRequestHandler = BlockRef->u1.Versions.u_v5.v5c->DirectOidRequestHandler;
         OpenBlock->FreeSharedMemoryHandler = BlockRef->u1.Versions.u_v5.v5c->FreeSharedMemoryHandler;
-        //        OpenBlock->IndicateOffloadEventHandler = BlockRef->u1.Versions.u_v5.v5->IndicateOffloadEventHandler;
-        //        OpenBlock->InitiateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->InitiateOffloadCompleteHandler;
-        //        OpenBlock->InvalidateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->InvalidateOffloadCompleteHandler;
         OpenBlock->MiniportCoCreateVcHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoCreateVcHandler;
         OpenBlock->MiniportCoOidRequestHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoOidRequestHandler;
         OpenBlock->MiniportCoRequestHandler = BlockRef->u1.Versions.u_v5.v5->MiniportCoRequestHandler;
@@ -1061,7 +1061,6 @@ BOOL CreateCompatibleOpenBlock(
         OpenBlock->OidRequestHandler = BlockRef->u1.Versions.u_v5.v5c->OidRequestHandler;
         OpenBlock->ProtSendCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->ProtSendCompleteHandler;
         OpenBlock->ProtSendNetBufferListsComplete = BlockRef->u1.Versions.u_v5.v5c->ProtSendNetBufferListsComplete;
-        //        OpenBlock->QueryOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->QueryOffloadCompleteHandler;
         OpenBlock->ReceiveCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->ReceiveCompleteHandler;
         OpenBlock->ReceiveHandler = BlockRef->u1.Versions.u_v5.v5c->ReceiveHandler;
         OpenBlock->ReceiveNetBufferLists = BlockRef->u1.Versions.u_v5.v5c->ReceiveNetBufferLists;
@@ -1078,16 +1077,8 @@ BOOL CreateCompatibleOpenBlock(
         OpenBlock->SendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->SendPacketsHandler;
         OpenBlock->StatusCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->StatusCompleteHandler;
         OpenBlock->StatusHandler = BlockRef->u1.Versions.u_v5.v5c->StatusHandler;
-        //      OpenBlock->TcpOffloadDisconnectCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadDisconnectCompleteHandler;
-       //       OpenBlock->TcpOffloadEventHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadEventHandler;
-       //       OpenBlock->TcpOffloadForwardCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadForwardCompleteHandler;
-       //       OpenBlock->TcpOffloadReceiveCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadReceiveCompleteHandler;
-       //       OpenBlock->TcpOffloadReceiveIndicateHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadReceiveIndicateHandler;
-       //       OpenBlock->TcpOffloadSendCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TcpOffloadSendCompleteHandler;
-       //       OpenBlock->TerminateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5->TerminateOffloadCompleteHandler;
         OpenBlock->TransferDataCompleteHandler = BlockRef->u1.Versions.u_v5.v5c->TransferDataCompleteHandler;
         OpenBlock->TransferDataHandler = BlockRef->u1.Versions.u_v5.v5c->TransferDataHandler;
-        //        OpenBlock->UpdateOffloadCompleteHandler = BlockRef->u1.Versions.u_v5.v5->UpdateOffloadCompleteHandler;
         OpenBlock->WanReceiveHandler = BlockRef->u1.Versions.u_v5.v5c->WanReceiveHandler;
         OpenBlock->WSendHandler = BlockRef->u1.Versions.u_v5.v5c->WSendHandler;
         OpenBlock->WSendPacketsHandler = BlockRef->u1.Versions.u_v5.v5c->WSendPacketsHandler;
@@ -1162,8 +1153,8 @@ BOOL ReadAndConvertOpenBlock(
     if (objectPtr == NULL) {
         return FALSE;
     }
-
     BlockRef.u1.Ref = objectPtr;
+
     Result = CreateCompatibleOpenBlock(objectVersion, &BlockRef, OpenBlock);
 
     if (ObjectVersion) {
