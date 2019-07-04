@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        25 June 2019
+*  DATE:        02 July 2019
 *
 *  Plugin manager.
 *
@@ -308,6 +308,8 @@ VOID PluginManagerProcessEntry(
             //
             ParamBlock.uiGetMaxCompareTwoFixedStrings = (pfnuiGetMaxCompareTwoFixedStrings)&supGetMaxCompareTwoFixedStrings;
             ParamBlock.uiGetMaxOfTwoU64FromHex = (pfnuiGetMaxOfTwoU64FromHex)&supGetMaxOfTwoU64FromHex;
+            ParamBlock.uiCopyTreeListSubItemValue = (pfnuiCopyTreeListSubItemValue)&supCopyTreeListSubItemValue;
+            ParamBlock.uiCopyListViewSubItemValue = (pfnuiCopyListViewSubItemValue)&supCopyListViewSubItemValue;
 
             RtlCopyMemory(&ParamBlock.osver, &g_WinObj.osver, sizeof(RTL_OSVERSIONINFOW));
 

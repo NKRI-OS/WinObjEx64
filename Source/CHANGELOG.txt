@@ -1,5 +1,6 @@
 v1.8.0
 improved run as localsystem feature
+added plugin subsystem
 
 v1.7.4
 added software licensing cache view (extras)

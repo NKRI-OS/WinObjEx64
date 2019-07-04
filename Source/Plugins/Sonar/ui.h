@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        01 July 2019
+*  DATE:        02 July 2019
 *
 *  WinObjEx64 Sonar UI constants, definitions and includes.
 *
@@ -26,6 +26,8 @@
 #define SONAR_WNDCLASS L"SonarWndClass"
 
 #define WINOBJEX64_ICON_MAIN        174
+
+#define ID_MENU_COPY_VALUE 41008
 
 #define Y_SPLITTER_SIZE 4
 #define Y_SPLITTER_MIN  100

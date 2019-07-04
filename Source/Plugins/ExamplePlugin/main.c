@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        22 June 2019
+*  DATE:        02 July 2019
 *
 *  WinObjEx64 example and test plugin.
 *
@@ -70,7 +70,7 @@ NTSTATUS CALLBACK StartPlugin(
     DWORD ThreadId;
 
     DbgPrint("StartPlugin called from thread 0x%lx\r\n", GetCurrentThreadId());
-    MessageBox(GetDesktopWindow(), TEXT("This is message from test plugin"), TEXT("TestPlugin"), MB_ICONINFORMATION);
+    MessageBox(GetDesktopWindow(), TEXT("This is message from example plugin"), TEXT("ExamplePlugin"), MB_ICONINFORMATION);
 
     RtlCopyMemory(&g_ParamBlock, ParamBlock, sizeof(WINOBJEX_PARAM_BLOCK));
     g_StopPlugin = FALSE;
@@ -128,7 +128,7 @@ BOOLEAN CALLBACK PluginInit(
         //
         // Set plugin name to be displayed in WinObjEx64 UI.
         //
-        StringCbCopy(PluginData->Description, 32, TEXT("TestPlugin"));
+        StringCbCopy(PluginData->Description, 32, TEXT("ExamplePlugin"));
 
         //
         // Setup start/stop plugin callbacks.

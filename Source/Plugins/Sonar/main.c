@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        01 July 2019
+*  DATE:        02 July 2019
 *
 *  WinObjEx64 Sonar plugin.
 *
@@ -99,7 +99,7 @@ VOID ListOpenQueue(
             TVIF_TEXT | TVIF_STATE,
             TVIS_EXPANDED,
             TVIS_EXPANDED,
-            TEXT("NDIS_OPEN_BLOCK"),
+            TEXT("OpenQueue"),
             &subitems);
 
         ProtocolNextOpen = (ULONG_PTR)OpenBlock.ProtocolNextOpen;
@@ -554,6 +554,14 @@ VOID DumpProtocolInfo(
     }
 
     //
+    // Output associated mini driver if present.
+    //
+    if (ProtoBlock.AssociatedMiniDriver) {
+        StringCchPrintf(szBuffer, 64, TEXT("0x%llX"), (ULONG_PTR)ProtoBlock.AssociatedMiniDriver);
+        xxxDumpProtocolBlock(TEXT("AssociatedMiniDriver"), szBuffer, NULL);
+    }
+
+    //
     // List Handlers.
     //
     RtlCopyMemory(ProtocolHandlers, &ProtoBlock.BindAdapterHandlerEx, sizeof(ProtocolHandlers));
@@ -732,6 +740,52 @@ VOID OnNotify(
 }
 
 /*
+* OnContextMenu
+*
+* Purpose:
+*
+* Main window WM_CONTEXTMENU handler.
+*
+*/
+VOID OnContextMenu(
+    _In_ HWND hwnd,
+    _In_ UINT idItem,
+    _In_ LPWSTR menuText,
+    _In_ LPPOINT point
+)
+{
+    HMENU hMenu;
+
+    hMenu = CreatePopupMenu();
+    if (hMenu) {
+        InsertMenu(hMenu, 0, MF_BYCOMMAND, idItem, menuText);
+        TrackPopupMenu(hMenu, TPM_RIGHTBUTTON | TPM_LEFTALIGN, point->x, point->y, 0, hwnd, NULL);
+        DestroyMenu(hMenu);
+    }
+}
+
+/*
+* CopyValueHandler
+*
+* Purpose:
+*
+* TreeList/ListView clipboard copy handler.
+*
+*/
+VOID CopyValueHandler(
+    _In_ UINT idMenu
+)
+{
+    if (idMenu == ID_MENU_COPY_VALUE) {
+        g_ctx.ParamBlock.uiCopyTreeListSubItemValue(g_ctx.TreeList, 0);
+
+    }
+    else if (idMenu == ID_MENU_COPY_VALUE + 1) {
+        g_ctx.ParamBlock.uiCopyListViewSubItemValue(g_ctx.ListView, 1);
+    }
+}
+
+/*
 * MainWindowProc
 *
 * Purpose:
@@ -747,12 +801,56 @@ LRESULT CALLBACK MainWindowProc(
 )
 {
     INT dy;
+    RECT crc;
+    INT mark;
+    HWND TreeListControl;
 
     switch (uMsg) {
 
+    case WM_CONTEXTMENU:
+
+        RtlSecureZeroMemory(&crc, sizeof(crc));
+
+        TreeListControl = TreeList_GetTreeControlWindow(g_ctx.TreeList);
+
+        if ((HWND)wParam == TreeListControl) {
+            GetCursorPos((LPPOINT)&crc);
+            OnContextMenu(hwnd, ID_MENU_COPY_VALUE, TEXT("Copy Object Field"), (LPPOINT)&crc);
+        }
+
+        if ((HWND)wParam == g_ctx.ListView) {
+
+            mark = ListView_GetSelectionMark(g_ctx.ListView);
+
+            if (lParam == MAKELPARAM(-1, -1)) {
+                ListView_GetItemRect(g_ctx.ListView, mark, &crc, TRUE);
+                crc.top = crc.bottom;
+                ClientToScreen(g_ctx.ListView, (LPPOINT)&crc);
+            }
+            else
+                GetCursorPos((LPPOINT)&crc);
+
+            OnContextMenu(hwnd, ID_MENU_COPY_VALUE + 1, TEXT("Copy Value Field"), (LPPOINT)&crc);
+        }
+        break;
+
     case WM_COMMAND:
-        if (LOWORD(wParam) == IDCANCEL)
+
+        switch (LOWORD(wParam)) {
+
+        case IDCANCEL:
             SendMessage(hwnd, WM_CLOSE, 0, 0);
+            break;
+
+        case ID_MENU_COPY_VALUE:
+        case ID_MENU_COPY_VALUE + 1:
+            CopyValueHandler(LOWORD(wParam));
+            break;
+
+        default:
+            break;
+        }
+
         break;
 
     case WM_SIZE:
@@ -994,25 +1092,20 @@ DWORD WINAPI PluginThread(
         col.pszText = TEXT("Item");
         col.fmt = LVCFMT_LEFT | LVCFMT_BITMAP_ON_RIGHT;
         col.cx = 300;
-        if (g_ctx.ImageList) {
-            col.iImage = ImageList_GetImageCount(g_ctx.ImageList) - 1;
-        }
-        else {
-            col.iImage = I_IMAGENONE;
-        }
+        col.iImage = I_IMAGENONE;
         ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
 
         col.fmt = LVCFMT_LEFT;
         col.iSubItem++;
         col.pszText = TEXT("Value");
         col.iOrder++;
-        col.cx = 300;
+        col.cx = 140;
         col.iImage = I_IMAGENONE;
         ListView_InsertColumn(g_ctx.ListView, col.iSubItem, &col);
 
         col.fmt = LVCFMT_LEFT;
         col.iSubItem++;
-        col.pszText = TEXT("Additional Info");
+        col.pszText = TEXT("Additional Information");
         col.iOrder++;
         col.cx = 300;
         col.iImage = I_IMAGENONE;

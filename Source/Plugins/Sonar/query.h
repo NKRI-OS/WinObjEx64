@@ -147,6 +147,7 @@ typedef struct _NDIS_PROTOCOL_BLOCK_COMPATIBLE {
 
     PVOID NextProtocol;
     PVOID OpenQueue;
+    PVOID AssociatedMiniDriver;
 
     UCHAR MajorNdisVersion;
     UCHAR MinorNdisVersion;

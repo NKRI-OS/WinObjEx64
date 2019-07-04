@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        29 June 2019
+*  DATE:        02 July 2019
 *
 *  Common header file for the plugin subsystem definitions.
 *
@@ -69,6 +69,14 @@ typedef INT(*pfnuiGetMaxCompareTwoFixedStrings)(
     _In_ LPARAM lParamSort,
     _In_ BOOL Inverse);
 
+typedef VOID(*pfnuiCopyTreeListSubItemValue)(
+    _In_ HWND TreeList,
+    _In_ UINT ValueIndex);
+
+typedef VOID(*pfnuiCopyListViewSubItemValue)(
+    _In_ HWND ListView,
+    _In_ UINT ValueIndex);
+
 typedef struct _WINOBJEX_PARAM_BLOCK {
     HWND ParentWindow;
     HINSTANCE hInstance;
@@ -86,6 +94,8 @@ typedef struct _WINOBJEX_PARAM_BLOCK {
     //ui
     pfnuiGetMaxOfTwoU64FromHex uiGetMaxOfTwoU64FromHex;
     pfnuiGetMaxCompareTwoFixedStrings uiGetMaxCompareTwoFixedStrings;
+    pfnuiCopyTreeListSubItemValue uiCopyTreeListSubItemValue;
+    pfnuiCopyListViewSubItemValue uiCopyListViewSubItemValue;
 
 } WINOBJEX_PARAM_BLOCK, *PWINOBJEX_PARAM_BLOCK;
 

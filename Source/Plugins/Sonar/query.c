@@ -485,6 +485,7 @@ BOOL CreateCompatibleProtocolBlock(
         RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v1->ImageName, sizeof(UNICODE_STRING));
         ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v1->OpenQueue;
         ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v1->NextProtocol;
+        ProtoBlock->AssociatedMiniDriver = ProtocolRef->u1.Versions.v1->AssociatedMiniDriver;
 
         ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v1->MajorDriverVersion;
         ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v1->MajorNdisVersion;
@@ -544,6 +545,7 @@ BOOL CreateCompatibleProtocolBlock(
         RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v2->ImageName, sizeof(UNICODE_STRING));
         ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v2->OpenQueue;
         ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v2->NextProtocol;
+        ProtoBlock->AssociatedMiniDriver = ProtocolRef->u1.Versions.v2->AssociatedMiniDriver;
 
         ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v2->MajorDriverVersion;
         ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v2->MajorNdisVersion;
@@ -603,6 +605,7 @@ BOOL CreateCompatibleProtocolBlock(
         RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v3->ImageName, sizeof(UNICODE_STRING));
         ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v3->OpenQueue;
         ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v3->NextProtocol;
+        ProtoBlock->AssociatedMiniDriver = ProtocolRef->u1.Versions.v3->AssociatedMiniDriver;
 
         ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v3->MajorDriverVersion;
         ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v3->MajorNdisVersion;
@@ -662,6 +665,7 @@ BOOL CreateCompatibleProtocolBlock(
         RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v4->ImageName, sizeof(UNICODE_STRING));
         ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v4->OpenQueue;
         ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v4->NextProtocol;
+        ProtoBlock->AssociatedMiniDriver = ProtocolRef->u1.Versions.v4->AssociatedMiniDriver;
 
         ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v4->MajorDriverVersion;
         ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v4->MajorNdisVersion;
@@ -709,6 +713,7 @@ BOOL CreateCompatibleProtocolBlock(
         RtlCopyMemory(&ProtoBlock->ImageName, &ProtocolRef->u1.Versions.v5->ImageName, sizeof(UNICODE_STRING));
         ProtoBlock->OpenQueue = ProtocolRef->u1.Versions.v5->OpenQueue;
         ProtoBlock->NextProtocol = ProtocolRef->u1.Versions.v5->NextProtocol;
+        ProtoBlock->AssociatedMiniDriver = ProtocolRef->u1.Versions.v5->AssociatedMiniDriver;
 
         ProtoBlock->MajorDriverVersion = ProtocolRef->u1.Versions.v5->MajorDriverVersion;
         ProtoBlock->MajorNdisVersion = ProtocolRef->u1.Versions.v5->MajorNdisVersion;
