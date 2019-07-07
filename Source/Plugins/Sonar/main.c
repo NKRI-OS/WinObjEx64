@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.00
 *
-*  DATE:        02 July 2019
+*  DATE:        04 July 2019
 *
 *  WinObjEx64 Sonar plugin.
 *
@@ -67,7 +67,7 @@ HTREEITEM TreeListAddItem(
 * Output NDIS_OPEN_BLOCK queue to the treelist.
 *
 */
-VOID ListOpenQueue(
+BOOL ListOpenQueue(
     _In_ HTREEITEM hTreeRootItem,
     _In_ ULONG_PTR OpenQueueAddress
 )
@@ -76,14 +76,15 @@ VOID ListOpenQueue(
 
     NDIS_OPEN_BLOCK_COMPATIBLE OpenBlock;
 
-    WCHAR szBuffer[100];
+    WCHAR szBuffer[200];
     TL_SUBITEMS_FIXED subitems;
 
     do {
         RtlSecureZeroMemory(&OpenBlock, sizeof(OpenBlock));
         if (!ReadAndConvertOpenBlock(ProtocolNextOpen, &OpenBlock, NULL)) {
-            SHOW_ERROR(TEXT("Could not read open block, abort."));
-            return;
+            StringCchPrintf(szBuffer, 200, TEXT("Could not read NDIS_OPEN_BLOCK 0x%llX"), ProtocolNextOpen);
+            SHOW_ERROR(szBuffer);       
+            return FALSE;
         }
 
         RtlSecureZeroMemory(&subitems, sizeof(subitems));
@@ -105,6 +106,8 @@ VOID ListOpenQueue(
         ProtocolNextOpen = (ULONG_PTR)OpenBlock.ProtocolNextOpen;
 
     } while (ProtocolNextOpen != 0);
+
+    return TRUE;
 }
 
 /*
@@ -202,6 +205,8 @@ VOID ListProtocols(
     ULONG_PTR ndisProtocolList = QueryProtocolList();
     ULONG_PTR ProtocolBlockAddress = 0;
 
+    WCHAR szBuffer[200];
+
     if (bRefresh) {
         ListView_DeleteAllItems(g_ctx.ListView);
         TreeList_ClearTree(g_ctx.TreeList);
@@ -219,7 +224,8 @@ VOID ListProtocols(
     ProtocolBlockAddress = (ULONG_PTR)ndisProtocolList - NextProtocolOffset;
     RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
     if (!ReadAndConvertProtocolBlock(ProtocolBlockAddress, &ProtoBlock, NULL)) {
-        SHOW_ERROR(TEXT("Could not read protocol block, abort."));
+        StringCchPrintf(szBuffer, 200, TEXT("Could not read NDIS_PROTOCOL_BLOCK 0x%llX, aborting enumeration."), ProtocolBlockAddress);
+        SHOW_ERROR(szBuffer);
         return;
     }
 
@@ -231,7 +237,8 @@ VOID ListProtocols(
     do {
         RtlSecureZeroMemory(&ProtoBlock, sizeof(ProtoBlock));
         if (!ReadAndConvertProtocolBlock(ProtocolBlockAddress, &ProtoBlock, NULL)) {
-            SHOW_ERROR(TEXT("Could not read protocol block, abort."));
+            StringCchPrintf(szBuffer, 200, TEXT("Could not read NDIS_PROTOCOL_BLOCK 0x%llX, aborting enumeration."), ProtocolBlockAddress);
+            SHOW_ERROR(szBuffer);
             return;
         }
 
@@ -508,8 +515,6 @@ VOID DumpProtocolInfo(
     if (pModulesList == NULL)
         return;
 
-    DbgPrint("NDIS_PROTOCOL_BLOCK %llX\r\n", ProtocolAddress);
-
     //
     // Dump protocol block from kernel.
     //
@@ -592,8 +597,6 @@ VOID DumpOpenBlockInfo(
     PVOID OpenBlockHandlers[_countof(g_lpszOpenBlockHandlers)];
 
     ListView_DeleteAllItems(g_ctx.ListView);
-
-    DbgPrint("NDIS_OPEN_BLOCK %llX\r\n", OpenBlockAddress);
 
     //
     // Allocate loaded modules list.

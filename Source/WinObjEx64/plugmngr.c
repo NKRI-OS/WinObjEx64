@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        02 July 2019
+*  DATE:        04 July 2019
 *
 *  Plugin manager.
 *
@@ -21,6 +21,46 @@
 
 LIST_ENTRY g_PluginsListHead;
 volatile UINT g_PluginCount = ID_MENU_PLUGINS;
+
+BOOL PluginManagerDllIsPlugin(
+    _In_ LPWSTR lpszPluginName
+)
+{
+    BOOL bResult = FALSE;
+    DWORD dwHandle = 0, dwSize;
+    PVOID versionInfo;
+    LPTRANSLATE	lpTranslate = NULL;
+    LPWSTR lpFileDescription;
+
+    WCHAR szBuffer[100];
+
+    dwSize = GetFileVersionInfoSizeEx(0, lpszPluginName, &dwHandle);
+    if (dwSize) {
+        versionInfo = supHeapAlloc((SIZE_T)dwSize);
+        if (versionInfo) {
+
+            if (GetFileVersionInfoEx(0, lpszPluginName, dwHandle, dwSize, versionInfo)) {
+
+                dwSize = 0;
+                if (VerQueryValue(versionInfo, VERSION_TRANSLATION, (LPVOID*)&lpTranslate, (PUINT)&dwSize)) {
+
+                    rtl_swprintf_s(szBuffer, MAX_PATH, VERSION_DESCRIPTION,
+                        lpTranslate[0].wLanguage, lpTranslate[0].wCodePage);
+
+                    lpFileDescription = NULL;
+                    dwSize = 0;
+                    if (VerQueryValue(versionInfo, szBuffer, (LPVOID*)&lpFileDescription, (PUINT)&dwSize)) {
+                        bResult = (_strcmp(lpFileDescription, WINOBJEX_PLUGIN_DESCRIPTION) == 0);
+                    }
+                }
+            }
+
+            supHeapFree(versionInfo);
+        }
+    }
+
+    return bResult;
+}
 
 /*
 * PluginManagerWorkerThread
@@ -84,6 +124,14 @@ DWORD WINAPI PluginManagerWorkerThread(
 
             szPluginPath[Length] = 0;
             _strcat(szPluginPath, fdata.cFileName);
+
+            //
+            // Validate plugin dll.
+            //
+            if (!PluginManagerDllIsPlugin(szPluginPath)) {
+                DbgPrint("Dll %ws is not a valid WinObjEx64 plugin\r\n", szPluginPath);
+                continue;
+            }
 
             //
             // Load library and query plugin export.

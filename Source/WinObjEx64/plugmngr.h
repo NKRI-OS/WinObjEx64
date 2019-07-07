@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        29 June 2019
+*  DATE:        04 July 2019
 *
 *  Common header file for the plugin manager.
 *
@@ -19,9 +19,18 @@
 
 #pragma once
 
+//
+// Plugin init routine name.
+//
 #define WINOBJEX_PLUGIN_EXPORT "PluginInit"
+
 #define ID_MENU_PLUGINS       60000
 #define WINOBJEX_MAX_PLUGINS  ID_MENU_PLUGINS + 20
+
+//
+// VERSION_INFO "FileDescription" value used for validating plugin.
+//
+#define WINOBJEX_PLUGIN_DESCRIPTION TEXT("WinObjEx64 Plugin")
 
 typedef BOOL(CALLBACK *pfnReadSystemMemoryEx)(
     _In_ ULONG_PTR Address,

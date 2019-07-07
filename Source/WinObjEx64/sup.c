@@ -6,7 +6,7 @@
 *
 *  VERSION:     1.80
 *
-*  DATE:        29 June 2019
+*  DATE:        04 July 2019
 *
 * THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
 * ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED
@@ -2654,7 +2654,7 @@ BOOL supQueryDriverDescription(
             if (ERROR_SUCCESS == lRet) {
 
                 dwHandle = 0;
-                dwSize = GetFileVersionInfoSize(szImagePath, &dwHandle);
+                dwSize = GetFileVersionInfoSizeEx(0, szImagePath, &dwHandle);
                 if (dwSize == 0)
                     break;
 
@@ -2664,7 +2664,7 @@ BOOL supQueryDriverDescription(
                     break;
 
                 // query it from file
-                if (!GetFileVersionInfo(szImagePath, 0, dwSize, vinfo))
+                if (!GetFileVersionInfoEx(0, szImagePath, 0, dwSize, vinfo))
                     break;
 
                 // query codepage and language id info
